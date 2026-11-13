@@ -1,0 +1,8 @@
+# Upstream files this fork may modify, one per line: <path> <line budget>.
+# The budget is the most lines (added plus removed) the fork's version may
+# differ from the upstream release it is based on. Checked by
+# scripts/xsec/check-upstream-diff.ts on every pull request.
+#
+# Keep entries to call lines only: the implementation belongs under
+# packages/coding-agent/src/xsec/. Remove an entry once upstream has taken the
+# change.

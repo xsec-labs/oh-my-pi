@@ -126,6 +126,12 @@ A registry built without settings follows the process's global settings. With no
 - **Extension dynamic managers.** A provider that an extension registers with `fetchDynamicModels` runs its own function on every discovery pass, session start included. The limit does not filter these managers, and the guard does not see the function's requests. Desktop's extensions register no such provider today.
 - **Cursor.** In `configured` mode, Cursor discovery runs only when `cursor` is listed in `models.yml`. It then calls the configured base URL, or `CURSOR_DEFAULT_BASE_URL`, with the global `fetch`, and with an HTTP/2 client when that fails. Neither goes through the guard.
 
+## Masking limits
+
+Each entry is a case where the ACP client can see text the restorer does not fully restore, and why.
+
+- **Obfuscator set mid-block.** If the session's obfuscator is set while a text or thinking block is streaming, the restorer starts that block's sent count at zero, so the client receives the block's earlier text again. Blocks that start with the obfuscator in place are not affected. The fix is a follow-up.
+
 ## Working locally
 
 ```sh

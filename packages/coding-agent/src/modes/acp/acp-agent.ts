@@ -99,6 +99,7 @@ import {
 	TTS_SPEED_OPTIONS,
 } from "../../tts/models";
 import { canonicalizeMessage } from "@oh-my-pi/pi-tui/chat/thinking-display";
+import { handleXsecExtMethod, isXsecExtMethod } from "../../xsec/acp";
 import { createAcpClientBridge } from "./acp-client-bridge";
 import {
 	extractAssistantMessageText,
@@ -1645,6 +1646,7 @@ export class AcpAgent implements Agent {
 	}
 
 	async extMethod(method: string, params: { [key: string]: unknown }): Promise<{ [key: string]: unknown }> {
+		if (isXsecExtMethod(method)) return handleXsecExtMethod(method, params, id => this.#getSessionRecord(id).session);
 		switch (method) {
 			case SPEECH_MODELS_LIST_METHOD:
 				return buildAcpSpeechModelsCatalog();

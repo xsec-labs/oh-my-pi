@@ -49,6 +49,18 @@ function mcpTool(serverName: string): CustomTool {
 	};
 }
 
+/** Loads `yaml` as a `--config` overlay, through the same loader the flag uses. */
+async function loadOverlay(tempDir: TempDir, yaml: string): Promise<Settings> {
+	const overlay = tempDir.join("overlay.yml");
+	await Bun.write(overlay, yaml);
+	return Settings.loadIsolated({
+		inMemory: true,
+		agentDir: tempDir.join("agent"),
+		cwd: tempDir.path(),
+		configFiles: [overlay],
+	});
+}
+
 afterEach(() => {
 	// Process-wide effects keep their last applied value after a release; reset them to the defaults.
 	resetSettingsForTest();
@@ -96,14 +108,7 @@ describe("deduplicateMCPToolsByName under mcp.toolNameCollision", () => {
 	it("reads error from a --config overlay file", async () => {
 		const tempDir = TempDir.createSync("@xsec-mcp-overlay-");
 		try {
-			const overlay = tempDir.join("overlay.yml");
-			await Bun.write(overlay, "mcp:\n  toolNameCollision: error\n");
-			const settings = await Settings.loadIsolated({
-				inMemory: true,
-				agentDir: tempDir.join("agent"),
-				cwd: tempDir.path(),
-				configFiles: [overlay],
-			});
+			const settings = await loadOverlay(tempDir, "mcp:\n  toolNameCollision: error\n");
 
 			const release = bindEffects(settings);
 			try {
@@ -116,36 +121,39 @@ describe("deduplicateMCPToolsByName under mcp.toolNameCollision", () => {
 		}
 	});
 
-	it("rejects an unknown mode in a --config overlay instead of keeping the default", async () => {
+	it("ignores an unknown mode in a --config overlay like any enum setting: keep-first applies and a warning names it", async () => {
+		const warn = vi.spyOn(logger, "warn").mockImplementation(() => {});
 		const tempDir = TempDir.createSync("@xsec-mcp-overlay-");
 		try {
-			const overlay = tempDir.join("overlay.yml");
-			await Bun.write(overlay, "mcp:\n  toolNameCollision: fail\n");
+			const settings = await loadOverlay(tempDir, "mcp:\n  toolNameCollision: fail\n");
 
-			await expect(
-				Settings.loadIsolated({
-					inMemory: true,
-					agentDir: tempDir.join("agent"),
-					cwd: tempDir.path(),
-					configFiles: [overlay],
-				}),
-			).rejects.toThrow(/toolNameCollision/);
+			const release = bindEffects(settings);
+			try {
+				expect(deduplicateMCPToolsByName([underscored, dotted])).toEqual([dotted]);
+				expect(warn).toHaveBeenCalledWith(
+					expect.any(String),
+					expect.objectContaining({ setting: "mcp.toolNameCollision" }),
+				);
+			} finally {
+				release();
+			}
 		} finally {
 			tempDir.removeSync();
 		}
 	});
 
-	it("fails a live session's tool refresh in error mode and leaves the registry unchanged", async () => {
+	it("fails a live session's tool refresh when a --config overlay selects error, and leaves the registry unchanged", async () => {
 		const tempDir = TempDir.createSync("@xsec-mcp-session-");
 		fs.mkdirSync(tempDir.join("auth"), { recursive: true });
 		const modelRegistry = new ModelRegistry(await discoverAuthStorage(tempDir.join("auth")));
 		try {
+			const settings = await loadOverlay(tempDir, "mcp:\n  toolNameCollision: error\n");
 			const { session } = await createAgentSession({
 				cwd: tempDir.path(),
 				agentDir: tempDir.path(),
 				modelRegistry,
 				sessionManager: SessionManager.inMemory(),
-				settings: Settings.isolated({ "mcp.toolNameCollision": "error" }),
+				settings,
 				model: getBundledModel("openai", "gpt-4o-mini"),
 				disableExtensionDiscovery: true,
 				skills: [],

@@ -7,24 +7,14 @@ import { effect, register } from "../config/registry";
 import { MCP_TOOL_NAME_COLLISION_MODES, setMCPToolNameCollisionMode } from "./mcp-tool-collision";
 
 /**
- * Rejects an unknown mode when it is configured. Without this, a typo would read as the default
- * (`keep-first`) and silently drop the protection Desktop asked for.
+ * `keep-first` (default): warn and keep the stable winner, as upstream does. `error`: fail tool loading.
+ * An unknown value in a config file follows upstream's rule for every enum setting: a warning, and the
+ * default applies. The fork adds no validation of its own.
  */
-function validateMCPToolNameCollision(raw: unknown): void {
-	if (raw === undefined || raw === null) return;
-	if (!MCP_TOOL_NAME_COLLISION_MODES.some(mode => mode === raw)) {
-		throw new Error(
-			`Invalid value for mcp.toolNameCollision: ${Bun.inspect(raw)} (expected one of ${MCP_TOOL_NAME_COLLISION_MODES.join(", ")})`,
-		);
-	}
-}
-
-/** `keep-first` (default): warn and keep the stable winner, as upstream does. `error`: fail tool loading. */
 export const cfgMcpToolNameCollision = register({
 	id: "mcp.toolNameCollision",
 	type: "enum",
 	values: MCP_TOOL_NAME_COLLISION_MODES,
 	default: "keep-first",
-	validate: validateMCPToolNameCollision,
 });
 effect(cfgMcpToolNameCollision, setMCPToolNameCollisionMode);

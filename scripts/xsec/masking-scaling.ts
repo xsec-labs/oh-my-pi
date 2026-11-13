@@ -17,10 +17,13 @@
  * takes too long is reported as stopped and the run goes on. Time comes from a
  * child that runs the code unchanged. A second child runs the same input with
  * counters on `String.prototype.slice` and `String.prototype.indexOf`, which exist
- * only in that child: `sliceChars` adds up the length of each string `slice` is
- * called on (a rope is flattened on that call, so this approximates the characters
- * copied) and `indexOfChars` adds up the characters `indexOf` scans. The checkout
- * is never changed.
+ * only in that child: `sliceChars` adds up the length of the string each `slice` is
+ * called on. When that string is a rope (the regex path's growing result), V8 copies
+ * all of it on the first slice, so the sum is the copy work, though it counts both
+ * slices of each replacement, so it is about twice the characters copied. For a flat
+ * string (the plain path's input) V8 copies nothing, so the sum overstates that path.
+ * `indexOfChars` adds up the characters `indexOf` scans, which is real work on both
+ * paths. The checkout is never changed.
  *
  * `exponent` is log(time ratio) / log(size ratio) between two consecutive sizes
  * that both finished: about 1 means linear, 2 quadratic, 3 cubic.

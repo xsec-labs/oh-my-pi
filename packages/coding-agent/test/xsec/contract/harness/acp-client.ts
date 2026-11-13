@@ -1,6 +1,8 @@
 import {
 	type InitializeRequest,
 	type InitializeResponse,
+	type LoadSessionRequest,
+	type LoadSessionResponse,
 	ndJsonStream,
 	type NewSessionRequest,
 	type NewSessionResponse,
@@ -48,6 +50,10 @@ export class AcpClient {
 
 	newSession(params: NewSessionRequest): Promise<NewSessionResponse> {
 		return this.#connection.request<NewSessionResponse>("session/new", params);
+	}
+
+	loadSession(params: LoadSessionRequest): Promise<LoadSessionResponse> {
+		return this.#connection.request<LoadSessionResponse>("session/load", params);
 	}
 
 	prompt(params: PromptRequest): Promise<PromptResponse> {

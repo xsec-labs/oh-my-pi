@@ -1,7 +1,12 @@
-# Upstream files this fork may modify, one per line: <path> <line budget>.
+# Upstream files this fork may modify, one per line:
+#   <path> <line budget> <test path or glob>...
 # The budget is the most lines (added plus removed) the fork's version may
-# differ from the upstream release it is based on. Checked by
-# scripts/xsec/check-upstream-diff.ts on every pull request.
+# differ from the upstream release it is based on. The test paths are the
+# upstream test files that exercise the code around the fork's call lines. Every
+# everyday pull request runs them (scripts/xsec/list-test-paths.ts), whether or
+# not it touches that file. Each entry needs at least one test path, and each
+# path must match at least one *.test.ts file.
+# Checked by scripts/xsec/check-upstream-diff.ts on every pull request.
 #
 # Keep entries to call lines only: the implementation belongs under
 # packages/coding-agent/src/xsec/. Remove an entry once upstream has taken the

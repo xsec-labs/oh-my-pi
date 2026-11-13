@@ -3,11 +3,13 @@ name: xsec CI
 # Checks for the xsec fork (see scripts/xsec/README.md).
 #
 # Upstream's own workflows are disabled in this repository: they need
-# upstream's runners and publishing secrets. This workflow reruns the
-# TypeScript checks and test jobs of upstream's pull-request CI with the same
-# commands, on GitHub-hosted runners only, and adds the fork's scope checks.
-# The fork does not change Rust, so native addons are upstream's prebuilt ones
-# from npm, and the Rust, bazel, install-method and release jobs do not run.
+# upstream's runners and publishing secrets. Every pull request to `xsec` runs
+# the fork's checks, the fork's own tests, upstream's CLI smoke entry and the
+# upstream test files listed in upstream-allowlist.txt ("everyday" mode). Sync
+# pull requests (head `sync/*`) and manual runs also run upstream's full
+# pull-request suite. The fork does not change Rust, so native addons are
+# upstream's prebuilt ones from npm, and the Rust, bazel, install-method and
+# release jobs do not run.
 #
 # Self-hosted runners must never be attached to this repository: it is public,
 # and a pull request could run its code on them.
@@ -73,24 +75,61 @@ jobs:
               path: ~/.bun/install/cache
               key: bun-${{ runner.os }}-${{ hashFiles('**/bun.lock') }}
 
+   everyday:
+      name: Fork and related tests
+      runs-on: ubuntu-22.04
+      timeout-minutes: 30
+      env:
+         # The settings scripts/ci-test-ts.ts gives upstream's test processes.
+         PI_TEST_RUNTIME: "1"
+         BUN_JSC_useConcurrentGC: "0"
+         BUN_JSC_numberOfGCMarkers: "1"
+      steps:
+         - uses: actions/checkout@v4
+         - uses: ./.github/actions/bun-install
+         - name: Install prebuilt native addons
+           run: bun scripts/xsec/fetch-natives.ts linux-x64
+         - name: Fork coding-agent tests
+           run: |
+              if [ -d packages/coding-agent/test/xsec ]; then
+                 cd packages/coding-agent
+                 bun test --parallel=1 --timeout="$((OMP_TEST_TIMEOUT * 1000))" test/xsec
+              else
+                 echo "packages/coding-agent/test/xsec does not exist yet; nothing to run."
+              fi
+         - name: CLI smoke
+           run: bun run ci:test:smoke
+         - name: Related upstream tests
+           run: |
+              listed="$(bun scripts/xsec/list-test-paths.ts)"
+              if [ -z "$listed" ]; then
+                 echo "upstream-allowlist.txt lists no upstream test file yet; nothing to run."
+                 exit 0
+              fi
+              while read -r dir file; do
+                 echo "==> $dir: $file"
+                 (cd "$dir" && bun test --parallel=1 --timeout="$((OMP_TEST_TIMEOUT * 1000))" "$file")
+              done <<< "$listed"
+
    test:
       name: "Test ${{ matrix.name }}"
+      # Upstream's full pull-request suite: sync pull requests and manual runs.
+      if: startsWith(github.head_ref, 'sync/') || github.event_name == 'workflow_dispatch'
       runs-on: ubuntu-22.04
       timeout-minutes: ${{ matrix.timeout }}
       strategy:
          fail-fast: false
          matrix:
             # One entry per upstream test_* pull-request job, with upstream's
-            # script, shard, concurrency and timeout (minutes). The native
-            # shards are the exception: see the comment above them.
+            # script, shard, concurrency and timeout (minutes).
             include:
-               # The native shards run at concurrency 2, not upstream's 4. Upstream's
-               # test browser-relay-detach races a 750 ms wall-clock GRACE_MS
-               # window and failed intermittently at 4. The test still runs and
-               # must pass; it is neither skipped nor quarantined.
-               - { name: "coding-agent native 1/3", script: "ci:test:coding-agent:native", shard: "1/3", concurrency: "2", timeout: 25 }
-               - { name: "coding-agent native 2/3", script: "ci:test:coding-agent:native", shard: "2/3", concurrency: "2", timeout: 25 }
-               - { name: "coding-agent native 3/3", script: "ci:test:coding-agent:native", shard: "3/3", concurrency: "2", timeout: 25 }
+               # Known failure: upstream's test browser-relay-detach races a 750 ms
+               # wall-clock GRACE_MS window and fails intermittently on these shards
+               # on GitHub-hosted runners. It still runs; it is neither skipped nor
+               # quarantined. See scripts/xsec/README.md.
+               - { name: "coding-agent native 1/3", script: "ci:test:coding-agent:native", shard: "1/3", concurrency: "4", timeout: 25 }
+               - { name: "coding-agent native 2/3", script: "ci:test:coding-agent:native", shard: "2/3", concurrency: "4", timeout: 25 }
+               - { name: "coding-agent native 3/3", script: "ci:test:coding-agent:native", shard: "3/3", concurrency: "4", timeout: 25 }
                - { name: "coding-agent runtime", script: "ci:test:coding-agent:runtime", concurrency: "4", timeout: 25 }
                - { name: "coding-agent ui", script: "ci:test:coding-agent:ui", concurrency: "2", timeout: 25 }
                - { name: "coding-agent singleton", script: "ci:test:coding-agent:singleton", timeout: 20 }

@@ -20,11 +20,11 @@ const COLLIDING_SERVERS = [
 const COLLIDING_TOOL = "mcp__foo_bar_echo";
 
 /**
- * The MCP startup window Desktop passes when it starts omp. With 0, session/new waits for every configured server to
- * settle, so a collision is reported by the request that starts the session. The first two cases start their child
- * with it; the third case starts one without it, to pin what the default window does.
+ * The MCP startup window the first two cases use. With 0, session/new waits for every configured server to settle, so
+ * a collision is reported by the request that starts the session. Desktop should set the same value when it starts omp;
+ * it does not set it yet. The third case starts its child without it, to pin what the default window does.
  */
-const DESKTOP_MCP_WINDOW = { OMP_MCP_STARTUP_TIMEOUT_MS: "0" };
+const WAIT_FOR_ALL_MCP_SERVERS = { OMP_MCP_STARTUP_TIMEOUT_MS: "0" };
 
 /** The names of the echo tools the session lists, read from `_xsec/session/capabilities`. */
 async function listedEchoes(child: AcpChild, sessionId: string): Promise<string[]> {
@@ -47,7 +47,7 @@ async function waitUntil(condition: () => Promise<boolean>): Promise<void> {
 describe("MCP tool name collision", () => {
 	it("with mcp.toolNameCollision error, session/new fails and names the tool and both servers", async () => {
 		const home = await contract.home({ toolNameCollision: "error" });
-		const child = await contract.child(home, { env: DESKTOP_MCP_WINDOW });
+		const child = await contract.child(home, { env: WAIT_FOR_ALL_MCP_SERVERS });
 		await child.connection.initialize({ protocolVersion: 1, clientCapabilities: {} });
 
 		const error = await rejectionOf(
@@ -62,7 +62,7 @@ describe("MCP tool name collision", () => {
 
 	it("with keep-first, upstream's default, the session starts, lists one tool and runs the first server's", async () => {
 		const home = await contract.home({ toolNameCollision: "keep-first" });
-		const child = await contract.child(home, { env: DESKTOP_MCP_WINDOW });
+		const child = await contract.child(home, { env: WAIT_FOR_ALL_MCP_SERVERS });
 		await child.connection.initialize({ protocolVersion: 1, clientCapabilities: {} });
 		const { sessionId } = await child.connection.newSession({ cwd: home.workspace, mcpServers: COLLIDING_SERVERS });
 

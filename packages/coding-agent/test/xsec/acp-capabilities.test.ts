@@ -157,13 +157,13 @@ describe("_xsec/session/capabilities", () => {
 		expect((error as RequestError).code).toBe(RESOURCE_NOT_FOUND_CODE);
 	});
 
-	// An `_xsec/` method the fork does not implement must fail the way upstream fails an unknown method.
-	it("throws upstream's unknown-method error for an _xsec method it does not implement", async () => {
+	// An `_xsec/` method the fork does not implement is method-not-found, so a client can probe for it.
+	it("answers method-not-found for an _xsec method it does not implement", async () => {
 		const { agent } = await openSession();
 
 		const error = await rejectionOf(agent.extMethod("_xsec/session/unknown", {}));
 
-		expect(error).toBeInstanceOf(Error);
-		expect((error as Error).message).toBe("Unknown ACP ext method: _xsec/session/unknown");
+		expect(error).toBeInstanceOf(RequestError);
+		expect(error).toMatchObject({ code: -32601 });
 	});
 });

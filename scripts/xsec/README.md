@@ -57,6 +57,27 @@ The fork never compiles the native addon. `fetch-natives.ts` installs every `.no
 
 CI uses GitHub-hosted runners only. Never attach a self-hosted runner to this repository: a pull request could run its code on it.
 
+## Sync with upstream
+
+`.github/workflows/xsec-sync.yml` runs `scripts/xsec/sync.ts` every day at 04:17 UTC and on `workflow_dispatch`. Its `dry_run` input plans and reports without pushing, opening or merging anything. Each run does these steps in order:
+
+1. Fast-forwards `main` to upstream's `main`. If `main` has commits upstream does not have, the run fails.
+2. Takes the newest upstream release tag `v<x.y.z>` that is newer than the version on `xsec`. Pre-release and fork tags are ignored, and versions compare by number, so 18.10.0 is newer than 18.9.0. At most one sync pull request is open: while `sync/v<version>` is open, a newer release waits until it merges.
+3. Opens `sync/v<version>` with one merge commit of that release into `xsec`, and a pull request against `xsec`. On a conflict nothing is pushed: the run fails, and its summary lists each conflicting file with the upstream commits that touched it. Adapt the fork's change on `xsec` so the release merges cleanly, then run the workflow again.
+4. Merges the pull request on a later run, with a merge commit, once all of these hold:
+   - it merges cleanly into the current `xsec`, and its head is exactly that merge: no commit of the fork's own, and no edit to the merged tree;
+   - it changes no file under `scripts/xsec/`, `packages/coding-agent/src/xsec/`, `packages/coding-agent/test/xsec/` or `.github/workflows/xsec-*.yml`, and no upstream workflow file (a new upstream workflow would start running in the fork);
+   - it has at least one check, every check on its head is completed and green (`success` or `skipped`), and the commit status is not pending or failed.
+
+   Anything else stays open for review. No check needs to be required in the repository settings: the run reads the check results itself. Auto-merge happens on a scheduled or manual run, so the merge can wait up to a day after the checks finish. A skipped check counts as green, so a job that its own `if:` skips on a sync pull request cannot hold it up. Any new `if:` on a job in `xsec-ci.yml` needs a T-37 review for that reason. A head with no check run at all also stays open, so a workflow that fails before any job starts holds the merge back.
+5. When `xsec` moves on while a sync pull request is open, the run rebuilds its branch on the new head, so the checks run on the merged result. It rebuilds only a branch that still holds the workflow's own merge. Any other content on a sync branch is left for a person.
+
+A sync pull request closed without merging is not reopened. Delete its branch to let a later run open a new one.
+
+**Token.** `OMP_SYNC_TOKEN` is a fine-grained personal access token for this repository only. It needs read and write access to **Contents** (pushes to `main` and the sync branches), **Pull requests** (opening, updating and merging the sync pull request) and **Workflows** (pushes that change a file under `.github/workflows/`). Metadata read comes with them. The run uses it for writes only: pushes, opening and updating the sync pull request, and merging. The workflow's own token cannot push a change to a workflow file, and a push or pull request made with it does not start CI, so it is never used for writes. The run reads with the workflow's own token, which the job grants read access to contents, pull requests, checks and commit statuses. When GitHub refuses a write for lack of a permission, the run fails and its error names the permission to add. A merge that GitHub refuses with 405 or 409 is not a failure: the pull request stays open for a later run. Only the two steps that use the token see it, the presence check and the sync itself. The checkout and the setup actions never do. It reaches git and the API per command and is never stored in `.git/config`. Never print it or commit it.
+
+**Runners.** GitHub-hosted only. The merge uses `git merge-tree --write-tree`, which needs git 2.38 or newer; `ubuntu-24.04` ships a newer git.
+
 ## Working locally
 
 ```sh

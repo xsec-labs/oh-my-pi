@@ -7,6 +7,7 @@ import {
 	type PromptRequest,
 	type PromptResponse,
 	RequestError,
+	type RequestPermissionRequest,
 	type RequestPermissionResponse,
 	RpcConnection,
 	type SessionNotification,
@@ -23,6 +24,7 @@ import { type ContractHome, FAKE_MODEL, FAKE_PROVIDER, ompCommand } from "./omp-
 export class AcpClient {
 	readonly #connection: RpcConnection;
 	readonly #updates: SessionNotification[] = [];
+	readonly #permissions: RequestPermissionRequest[] = [];
 
 	constructor(stream: Stream) {
 		this.#connection = new RpcConnection(stream, (method, params, notification) => {
@@ -31,6 +33,7 @@ export class AcpClient {
 				return;
 			}
 			if (method === "session/request_permission" && !notification) {
+				this.#permissions.push(params as RequestPermissionRequest);
 				return { outcome: { outcome: "cancelled" } } satisfies RequestPermissionResponse;
 			}
 			throw RequestError.methodNotFound(method);
@@ -40,6 +43,11 @@ export class AcpClient {
 	/** Every `session/update` notification the agent has sent, in arrival order. */
 	get updates(): readonly SessionNotification[] {
 		return this.#updates;
+	}
+
+	/** Every `session/request_permission` the agent has sent, in arrival order. The test answers each one with "cancelled". */
+	get permissions(): readonly RequestPermissionRequest[] {
+		return this.#permissions;
 	}
 
 	initialize(params: InitializeRequest): Promise<InitializeResponse> {

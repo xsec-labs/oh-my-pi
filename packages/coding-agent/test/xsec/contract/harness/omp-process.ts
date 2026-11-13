@@ -46,6 +46,11 @@ export interface ContractHomeOptions {
 	 * named built-in patterns off. Left out, masking is off, as it is by default in omp.
 	 */
 	masking?: { disabledBuiltinPatterns?: readonly string[]; secretsYml?: string };
+	/**
+	 * The home's `secrets.yml` (a YAML array of entries). Given, the overlay turns `secrets.enabled` on, which is
+	 * how Desktop turns masking on. Left out, masking is off.
+	 */
+	secrets?: string;
 }
 
 /** Starts a fresh home for one test: its own agent directory, workspace, models file and settings overlay. */
@@ -88,16 +93,19 @@ export async function createContractHome(options: ContractHomeOptions = {}): Pro
 			"goal:",
 			`  enabled: ${goalEnabled}`,
 			...(options.workerThreads === undefined ? [] : ["task:", `  workerThreads: ${options.workerThreads}`]),
-			...(masking === undefined
+			...(masking === undefined && options.secrets === undefined
 				? []
 				: [
 						"secrets:",
 						"  enabled: true",
-						`  disabledBuiltinPatterns: ${JSON.stringify(masking.disabledBuiltinPatterns ?? [])}`,
+						...(masking === undefined
+							? []
+							: [`  disabledBuiltinPatterns: ${JSON.stringify(masking.disabledBuiltinPatterns ?? [])}`]),
 					]),
 			"",
 		].join("\n"),
 	);
+	if (options.secrets !== undefined) fs.writeFileSync(path.join(dirs.agentDir, "secrets.yml"), options.secrets);
 
 	// The one model provider, in the Desktop `models.yml` format, pointing at the fake model server.
 	fs.writeFileSync(

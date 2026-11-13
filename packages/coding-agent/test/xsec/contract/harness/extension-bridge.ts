@@ -3,10 +3,14 @@
  * each approval request, and answers an approval with the decision the test has chosen.
  */
 
-/** The answer to one approval request: `allow` runs the tool call, otherwise `reason` goes to the model. */
+/**
+ * The answer to one approval request: `allow` runs the tool call, otherwise `reason` goes to the model. An
+ * allowed call runs with `input` in place of its arguments when the answer gives one.
+ */
 export interface ApprovalDecision {
 	allow: boolean;
 	reason?: string;
+	input?: Record<string, unknown>;
 }
 
 export interface ExtensionBridge {

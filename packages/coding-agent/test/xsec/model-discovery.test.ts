@@ -8,7 +8,7 @@ import { getBundledModels } from "@oh-my-pi/pi-catalog/models";
 import { ModelRegistry } from "@oh-my-pi/pi-coding-agent/config/model-registry";
 import { Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
 import { AuthStorage } from "@oh-my-pi/pi-coding-agent/session/auth-storage";
-import { ModelDiscoveryLimit } from "@oh-my-pi/pi-coding-agent/xsec/model-discovery";
+import { ModelDiscoveryLimit, readModelDiscoveryMode } from "@oh-my-pi/pi-coding-agent/xsec/model-discovery";
 import { removeSyncWithRetries, Snowflake } from "@oh-my-pi/pi-utils";
 
 /**
@@ -276,5 +276,24 @@ describe("ModelDiscoveryLimit.guardFetch", () => {
 
 		await guarded("https://catalog.stencil.so/models.json.zstd");
 		expect(reached).toEqual(["https://catalog.stencil.so/models.json.zstd"]);
+	});
+});
+
+describe("readModelDiscoveryMode", () => {
+	test("an unreadable settings instance stays limited, so an unlisted provider is not discovered", () => {
+		const unreadable = new Proxy({} as Settings, {
+			get() {
+				throw new Error("settings unreadable");
+			},
+		});
+		// Failing open would return "all" here, and every provider would be discovered.
+		expect(readModelDiscoveryMode(unreadable)).toBe("configured");
+		expect(new ModelDiscoveryLimit(unreadable).allowsProvider("alpha")).toBe(false);
+	});
+
+	test("a loaded settings instance reads its own mode, and with no settings loaded the default is all", () => {
+		expect(readModelDiscoveryMode(Settings.isolated({ "models.discovery": "configured" }))).toBe("configured");
+		expect(readModelDiscoveryMode(Settings.isolated({}))).toBe("all");
+		expect(readModelDiscoveryMode()).toBe("all");
 	});
 });

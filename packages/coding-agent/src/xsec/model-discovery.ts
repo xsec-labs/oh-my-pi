@@ -10,17 +10,31 @@
  */
 import type { Api, FetchImpl } from "@oh-my-pi/pi-ai";
 import type { ModelManagerOptions } from "@oh-my-pi/pi-catalog/model-manager";
-import { type Settings, settings } from "../config/settings";
+import { logger } from "@oh-my-pi/pi-utils";
+import { Settings, settings } from "../config/settings";
 import { cfgModelsDiscovery } from "./settings";
 
 export type ModelDiscoveryMode = "all" | "configured";
 
-/** The mode for `settingsInstance` (the global settings when absent). `all` when it cannot be read. */
+let unreadableWarned = false;
+
+/**
+ * The mode for `settingsInstance` (the global settings when absent). With no settings loaded and none
+ * passed, nothing is configured and the default applies. A loaded instance whose mode cannot be read
+ * is `configured`: discovery stays limited, and the failure is logged once.
+ */
 export function readModelDiscoveryMode(settingsInstance?: Settings): ModelDiscoveryMode {
+	if (settingsInstance === undefined && Settings.current === null) return "all";
 	try {
 		return cfgModelsDiscovery.get(settingsInstance ?? settings);
-	} catch {
-		return "all";
+	} catch (error) {
+		if (!unreadableWarned) {
+			unreadableWarned = true;
+			logger.warn("models.discovery cannot be read; model discovery stays limited to the configured providers", {
+				error: error instanceof Error ? error.message : String(error),
+			});
+		}
+		return "configured";
 	}
 }
 

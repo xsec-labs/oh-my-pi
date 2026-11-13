@@ -39,7 +39,7 @@ Upstream's development rules in [AGENTS.md](../../AGENTS.md) apply to fork code 
 
 - **Fork scope**: `check-upstream-diff.ts`, `check-workflows.ts` and the tests of `scripts/xsec`.
 - **Lint, type check & web build**: upstream's `ci:check:full` and `collab:web:build`.
-- **Tests**: the nine entries of upstream's `test_*` pull-request jobs, with upstream's scripts, shards, concurrency and timeouts.
+- **Tests**: the nine entries of upstream's `test_*` pull-request jobs, with upstream's scripts, shards and timeouts. The three native shards run at concurrency 2 instead of upstream's 4; the comment on those entries in `xsec-ci.yml` gives the reason.
 
 Not run here: the Rust license check (`cargo-deny`), the bazel and native addon build jobs, the install method smoke tests (`ci:test:install-methods`), and the release jobs. The fork changes no Rust, and the rest need upstream's runners or publishing secrets.
 

@@ -19,6 +19,9 @@ const APPROVAL_GATE = path.join(import.meta.dir, "fixtures", "approval-gate.ts")
 /** A made-up credential: the only secret these tests configure. No request the model receives may carry it. */
 const SECRET = "xsk_contract_7d41c9e2f0b8a63d5e19";
 
+/** The home's `secrets.yml`: the one secret, as an entry the session masks. */
+const SECRETS_YML = JSON.stringify([{ type: "plain", content: SECRET, mode: "obfuscate" }]);
+
 /** The arguments of a `write` call that creates `filePath` with `content`. */
 function writeArguments(filePath: string, content: string): string {
 	return JSON.stringify({ path: filePath, content });
@@ -74,7 +77,7 @@ async function shareSecret(home: ContractHome, child: AcpChild, sessionId: strin
 
 describe("secrets at the tool_call hook", () => {
 	it("hands the hook the real value, and the tool runs with it", async () => {
-		const home = await contract.home({ secrets: { enabled: true, values: [SECRET] } });
+		const home = await contract.home({ secrets: SECRETS_YML });
 		const bridge = startExtensionBridge();
 		try {
 			const { child, sessionId } = await gatedSession(home, bridge);
@@ -99,7 +102,7 @@ describe("secrets at the tool_call hook", () => {
 	});
 
 	it("records a revised input in the transcript as a placeholder, and runs it with the real value", async () => {
-		const home = await contract.home({ secrets: { enabled: true, values: [SECRET] } });
+		const home = await contract.home({ secrets: SECRETS_YML });
 		const bridge = startExtensionBridge();
 		try {
 			const { child, sessionId } = await gatedSession(home, bridge);
@@ -127,7 +130,7 @@ describe("secrets at the tool_call hook", () => {
 	});
 
 	it("blocks a call whose refusal quotes the real value, and no request carries the value", async () => {
-		const home = await contract.home({ secrets: { enabled: true, values: [SECRET] } });
+		const home = await contract.home({ secrets: SECRETS_YML });
 		const bridge = startExtensionBridge();
 		try {
 			const { child, sessionId } = await gatedSession(home, bridge);
@@ -155,7 +158,9 @@ describe("secrets at the tool_call hook", () => {
 	});
 
 	it("passes the hook the arguments as the model wrote them when secrets are off", async () => {
-		const home = await contract.home({ secrets: { enabled: false, values: [SECRET] } });
+		const home = await contract.home();
+		// The file is in the home, but nothing turns masking on, so the session restores nothing.
+		fs.writeFileSync(path.join(home.base, "agent", "secrets.yml"), SECRETS_YML);
 		const bridge = startExtensionBridge();
 		try {
 			const { child, sessionId } = await gatedSession(home, bridge);
@@ -181,7 +186,7 @@ describe("secrets at the tool_call hook", () => {
 	});
 
 	it("shows the client the real command in its permission request", async () => {
-		const home = await contract.home({ secrets: { enabled: true, values: [SECRET] } });
+		const home = await contract.home({ secrets: SECRETS_YML });
 		const child = await contract.child(home);
 		await child.connection.initialize({ protocolVersion: 1, clientCapabilities: {} });
 		const { sessionId } = await child.connection.newSession({ cwd: home.workspace, mcpServers: [] });

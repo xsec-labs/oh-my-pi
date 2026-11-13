@@ -1,0 +1,21 @@
+# Upstream test failures that the full-suite run accepts (see scripts/xsec/README.md).
+#
+# One entry per line: <test file, relative to the repository root> :: <test name>.
+# The name joins the describe blocks and the test with " > ", as bun prints a
+# failure. run-full-suite.ts reads this file. An entry counts as passing only in
+# the full-suite mode, and only for the failure it names. Everyday pull requests
+# do not read it.
+#
+# Never skip, disable or quarantine an upstream test here. The test still runs;
+# its entry only lets that one failure count as passing.
+#
+# browser-relay-detach, "reports a cancel that lands during the re-adoption as a
+# cancel": the cancel path arms a 750 ms wall-clock timer (GRACE_MS in
+# packages/coding-agent/src/tools/browser/tab-supervisor.ts), so the outcome can
+# depend on load. Evidence: fork CI runs of "Test coding-agent native 3/3" on
+# GitHub-hosted runners, jobs 131711652635 (attempt 1) and 131716675044 (rerun),
+# both failing with "Tab ... was killed: Browser code execution did not stop after
+# cancellation." A local run of this checkout on 2026-11-13 failed the same test in
+# the same chunk (84/112 of shard 3/3) with the same error. Since v18.20.0 the fork
+# changes no upstream test or source file, so these runs used upstream's code.
+packages/coding-agent/test/tools/browser-relay-detach.test.ts :: relay tabs Chrome detaches omp from > reports a cancel that lands during the re-adoption as a cancel

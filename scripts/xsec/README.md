@@ -6,11 +6,11 @@ The repository is public. Never commit keys, account details or customer data: a
 
 ## Branches and tags
 
-| Ref | Content | Rule |
-| --- | --- | --- |
-| `main` | Mirror of upstream `main` | Fast-forwarded by the sync job only |
-| `xsec` (default) | An upstream release tag plus the fork's commits | Pull requests only; upstream is merged in, never rebased |
-| `v<upstream>-xsec.<n>` | A fork release | `<n>` counts fork releases on one upstream version |
+| Ref                    | Content                                         | Rule                                                     |
+| ---------------------- | ----------------------------------------------- | -------------------------------------------------------- |
+| `main`                 | Mirror of upstream `main`                       | Fast-forwarded by the sync job only                      |
+| `xsec` (default)       | An upstream release tag plus the fork's commits | Pull requests only; upstream is merged in, never rebased |
+| `v<upstream>-xsec.<n>` | A fork release                                  | `<n>` counts fork releases on one upstream version       |
 
 Open pull requests against `xsec` in this repository. GitHub preselects upstream as the base of a pull request from a fork, so name the base explicitly.
 
@@ -23,7 +23,7 @@ Fork code lives under prefixes upstream does not use, so merging upstream never 
 - `scripts/xsec/` for CI scripts
 - `.github/workflows/xsec-*.yml` for workflows
 
-An upstream file may only gain the lines that call into `src/xsec/`. Each such file is listed in `upstream-allowlist.txt` with a line budget, and `check-upstream-diff.ts` fails a pull request that changes any other upstream file or goes over a budget.
+An upstream file may only gain the lines that call into `src/xsec/`. Each such file is listed in `upstream-allowlist.txt` with a line budget and the upstream test paths that cover it. `check-upstream-diff.ts` fails a pull request that changes any other upstream file, goes over a budget, or lists a test path that matches no `*.test.ts` file.
 
 Do not change these, listed or not; `check-upstream-diff.ts` fails on each of them:
 
@@ -35,11 +35,21 @@ Upstream's development rules in [AGENTS.md](../../AGENTS.md) apply to fork code 
 
 ## CI
 
-`.github/workflows/xsec-ci.yml` runs on pull requests to `xsec`, and on pushes to `xsec`:
+`.github/workflows/xsec-ci.yml` runs on pull requests to `xsec`, and on pushes to `xsec`, in two modes.
+
+Every run:
 
 - **Fork scope**: `check-upstream-diff.ts`, `check-workflows.ts` and the tests of `scripts/xsec`.
 - **Lint, type check & web build**: upstream's `ci:check:full` and `collab:web:build`.
-- **Tests**: the nine entries of upstream's `test_*` pull-request jobs, with upstream's scripts, shards and timeouts. The three native shards run at concurrency 2 instead of upstream's 4; the comment on those entries in `xsec-ci.yml` gives the reason.
+- **Fork and related tests**: every test under `packages/coding-agent/test/xsec/`, upstream's CLI smoke entry (`ci:test:smoke`), and the upstream test files that the test paths in `upstream-allowlist.txt` name (`scripts/xsec/list-test-paths.ts`). Each file runs from its package directory with one process and a 120 s ceiling per test, as upstream runs them.
+
+Sync pull requests (head branch `sync/*`, the name the sync workflow gives its branches) and manual runs also run upstream's full pull-request suite: the nine entries of its `test_*` jobs, with upstream's scripts, shards, concurrency (4, the native shards included) and timeouts. Each runner entry runs through `run-full-suite.ts`, which judges its result (below). The CLI smoke entry runs as it is.
+
+**Known failures.** `upstream-known-failures.txt` lists upstream tests that fail on this fork's full-suite runs, one `<test file> :: <test name>` per line. It holds one entry: `test/tools/browser-relay-detach.test.ts`, "reports a cancel that lands during the re-adoption as a cancel", which fails intermittently in `Test coding-agent native 3/3` on GitHub-hosted runners. The test still runs; it is neither skipped nor quarantined.
+
+`run-full-suite.ts` runs each runner entry unchanged and judges its output. The entry passes only when the script ran to completion (its summary accounts for every chunk of `bun run <script> --dry-run`, or a sequential run exited 0), every failing chunk exited 1 and names its failing tests, and every failing test is on the list. Anything else fails the job: an unlisted failure, a chunk that exits with another code (a crash, an OOM kill or a watchdog timeout), a failure that names no test, or a run that did not finish. The accepted failures are written to the job summary. When a listed test's file is in the plan and the test did not fail in the run (it passed or was skipped), the job warns, so a fixed test leaves the list.
+
+The judge reads the runner's report, so one limit remains: an error that a chunk prints without a test name is not visible when the same chunk also has a listed failure. A change to the list needs a fork pull request, a T-37 review, and evidence that the test also fails on unmodified upstream code. Everyday runs never read the list.
 
 Not run here: the Rust license check (`cargo-deny`), the bazel and native addon build jobs, the install method smoke tests (`ci:test:install-methods`), and the release jobs. The fork changes no Rust, and the rest need upstream's runners or publishing secrets.
 

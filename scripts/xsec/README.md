@@ -68,11 +68,12 @@ Release assets:
 | `omp-windows-x64.exe` | Windows x64, `bun-windows-x64-baseline` |
 | `SHA256SUMS` | SHA-256 of the four binaries above |
 
-`SHA256SUMS` has one line per binary, sorted by file name: the 64 lowercase hex digits of the SHA-256, two spaces, the file name, and a newline. Check it with `sha256sum -c SHA256SUMS` on Linux, or `shasum -a 256 -c SHA256SUMS` on macOS. The file names carry no version; the release tag gives the fork version.
+`SHA256SUMS` has one line per binary, sorted by file name: the 64 lowercase hex digits of the SHA-256, two spaces, the file name, and a newline. Check it with `sha256sum -c SHA256SUMS` on Linux, or `shasum -a 256 -c SHA256SUMS` on macOS. The file names carry no version; the release tag gives the fork version. Upstream's releases name their checksum file `SHA256SUMS.txt`; the fork's file has no extension.
 
 For XSec Desktop:
 
-- The tag is the fork version, for example `v18.20.0-xsec.1`. `omp --version` still prints the upstream version (`18.20.0`): the build takes no fork identifier, and adding one would change an upstream file.
+- The tag is the fork version, for example `v18.20.0-xsec.1`. `omp --version` still prints the upstream version (`18.20.0`): the build takes no fork identifier, and adding one would change an upstream file. Desktop identifies a build by its tag and SHA-256, not by `--version`.
+- The release notes name the tag, the commit it was built from and the upstream version.
 - macOS binaries are signed ad hoc with the release entitlements. They are not Developer ID signed and not notarized. The Windows binary is not signed.
 - Each binary embeds the upstream native addon of its target, `@oh-my-pi/pi-natives-<target>` at the upstream version.
 - A release holds only the five files above: no npm packages, no browser relay archive, no `LICENSE`, and no musl or arm64 Linux or Windows binaries.

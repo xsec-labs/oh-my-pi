@@ -170,13 +170,23 @@ jobs:
          - name: Create the release as a draft
            # A draft is complete before anyone sees it. gh refuses an existing
            # release for the tag, so a published release is never overwritten.
+           # The notes name the fork tag, the commit and the upstream version,
+           # which is what Desktop pins besides the SHA-256 values.
            env:
               GH_TOKEN: ${{ github.token }}
               TAG: ${{ github.ref_name }}
+              COMMIT: ${{ github.sha }}
            run: |
               set -euo pipefail
+              upstream="${TAG#v}"
+              upstream="${upstream%-xsec.*}"
+              notes="$RUNNER_TEMP/release-notes.md"
+              printf '%s\n' \
+                "Fork release $TAG of XSec's oh-my-pi, built from commit $COMMIT on upstream v$upstream." \
+                "" \
+                "Verify the binaries with SHA256SUMS. Desktop identifies a build by this tag and its SHA-256, not by the version that omp --version prints ($upstream)." > "$notes"
               cd release
-              gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --verify-tag --draft --title "$TAG" --generate-notes omp-darwin-arm64 omp-darwin-x64 omp-linux-x64 omp-windows-x64.exe SHA256SUMS
+              gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --verify-tag --draft --title "$TAG" --notes-file "$notes" omp-darwin-arm64 omp-darwin-x64 omp-linux-x64 omp-windows-x64.exe SHA256SUMS
          - name: Publish the release
            env:
               GH_TOKEN: ${{ github.token }}

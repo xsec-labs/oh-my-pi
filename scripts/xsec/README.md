@@ -126,6 +126,11 @@ A registry built without settings follows the process's global settings. With no
 - **Extension dynamic managers.** A provider that an extension registers with `fetchDynamicModels` runs its own function on every discovery pass, session start included. The limit does not filter these managers, and the guard does not see the function's requests. Desktop's extensions register no such provider today.
 - **Cursor.** In `configured` mode, Cursor discovery runs only when `cursor` is listed in `models.yml`. It then calls the configured base URL, or `CURSOR_DEFAULT_BASE_URL`, with the global `fetch`, and with an HTTP/2 client when that fails. Neither goes through the guard.
 
+## Masking limits
+
+- Tool and function names (`tools[].name`, and the names the model writes in tool calls) are not masked: a provider function name must match `[a-zA-Z0-9_-]`, and the placeholder contains `$` and `:`, so it cannot be one.
+- Schema strings other than `description` (`enum`, `default`, `examples`) are not masked: the arguments of a call are validated against the schema before placeholders are restored, so a masked enum would reject valid calls.
+
 ## Working locally
 
 ```sh

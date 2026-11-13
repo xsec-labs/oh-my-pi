@@ -41,6 +41,11 @@ export interface ContractHomeOptions {
 	workerThreads?: number;
 	/** `mcp.toolNameCollision` in the settings overlay. Desktop passes `error`, which is the default here. */
 	toolNameCollision?: "keep-first" | "error";
+	/**
+	 * Secrets the way Desktop passes them: `secrets.enabled` in the settings overlay, and each value of `values` as
+	 * an obfuscated entry of the agent directory's `secrets.yml`. Left out, the overlay says nothing about secrets.
+	 */
+	secrets?: { enabled: boolean; values?: string[] };
 }
 
 /** Starts a fresh home for one test: its own agent directory, workspace, models file and settings overlay. */
@@ -78,9 +83,18 @@ export async function createContractHome(options: ContractHomeOptions = {}): Pro
 			"goal:",
 			`  enabled: ${goalEnabled}`,
 			...(options.workerThreads === undefined ? [] : ["task:", `  workerThreads: ${options.workerThreads}`]),
+			...(options.secrets === undefined ? [] : ["secrets:", `  enabled: ${options.secrets.enabled}`]),
 			"",
 		].join("\n"),
 	);
+
+	const secretValues = options.secrets?.values ?? [];
+	if (secretValues.length > 0) {
+		fs.writeFileSync(
+			path.join(dirs.agentDir, "secrets.yml"),
+			secretValues.map(value => `- type: plain\n  content: ${JSON.stringify(value)}\n  mode: obfuscate\n`).join(""),
+		);
+	}
 
 	// The one model provider, in the Desktop `models.yml` format, pointing at the fake model server.
 	fs.writeFileSync(

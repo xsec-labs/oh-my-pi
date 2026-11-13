@@ -46,6 +46,11 @@ export interface ContractHomeOptions {
 	/** `secrets.enabled` in the settings overlay. Left out, the setting keeps its default, off. */
 	secretsEnabled?: boolean;
 	/**
+	 * Desktop's masking, as its `--config` overlay and global `secrets.yml` write it: `secrets.enabled` is on, with the
+	 * named built-in patterns off. Left out, masking is off, as it is by default in omp.
+	 */
+	masking?: { disabledBuiltinPatterns?: readonly string[]; secretsYml?: string };
+	/**
 	 * The home's `secrets.yml` (a YAML array of entries). Given, the overlay turns `secrets.enabled` on, which is
 	 * how Desktop turns masking on. Left out, masking is off.
 	 */
@@ -54,6 +59,10 @@ export interface ContractHomeOptions {
 
 /** Starts a fresh home for one test: its own agent directory, workspace, models file and settings overlay. */
 export async function createContractHome(options: ContractHomeOptions = {}): Promise<ContractHome> {
+	// Masking writes the home's secrets.yml and `secrets` replaces it, so giving both would drop the masking rules.
+	if (options.masking !== undefined && options.secrets !== undefined) {
+		throw new Error("createContractHome takes masking or secrets, not both: both write secrets.yml");
+	}
 	const goalEnabled = options.goalEnabled ?? true;
 	const discovery = options.discovery ?? "configured";
 	const toolNameCollision = options.toolNameCollision ?? "error";
@@ -76,6 +85,11 @@ export async function createContractHome(options: ContractHomeOptions = {}): Pro
 
 	// The settings Desktop passes with `--config`: discovery contacts only the configured providers, and a
 	// tool name collision is an error. Goal mode is written out so a test can turn it off.
+	// Masking is on the way Desktop turns it on, with a secrets.yml beside the overlay. A home without rules gets an empty list.
+	const masking = options.masking;
+	if (masking !== undefined) {
+		fs.writeFileSync(path.join(dirs.agentDir, "secrets.yml"), masking.secretsYml ?? "[]\n");
+	}
 	const configPath = path.join(base, "config.yml");
 	fs.writeFileSync(
 		configPath,
@@ -90,10 +104,16 @@ export async function createContractHome(options: ContractHomeOptions = {}): Pro
 			...(options.compactionKeepRecentTokens === undefined
 				? []
 				: ["compaction:", `  keepRecentTokens: ${options.compactionKeepRecentTokens}`]),
-			// One `secrets:` block. An explicit `secretsEnabled` decides; otherwise given secrets.yml content turns masking on.
-			...(options.secrets === undefined && options.secretsEnabled === undefined
+			// One `secrets:` block. Masking or given secrets.yml content turns secrets on, and `secretsEnabled` sets it explicitly.
+			...(masking === undefined && options.secrets === undefined && options.secretsEnabled === undefined
 				? []
-				: ["secrets:", `  enabled: ${options.secretsEnabled ?? options.secrets !== undefined}`]),
+				: [
+						"secrets:",
+						`  enabled: ${options.secretsEnabled ?? (masking !== undefined || options.secrets !== undefined)}`,
+						...(masking === undefined
+							? []
+							: [`  disabledBuiltinPatterns: ${JSON.stringify(masking.disabledBuiltinPatterns ?? [])}`]),
+					]),
 			"",
 		].join("\n"),
 	);

@@ -1,5 +1,12 @@
 import { describe, expect, it, setDefaultTimeout } from "bun:test";
-import { type AcpChild, type ContractHome, logLines, useContractSession, watchDiscoveryPorts } from "./harness";
+import {
+	type AcpChild,
+	type ContractHome,
+	type DiscoveryPortWatch,
+	logLines,
+	useContractSession,
+	watchDiscoveryPorts,
+} from "./harness";
 
 setDefaultTimeout(120_000);
 
@@ -61,11 +68,20 @@ async function runEveryKindOfWork(home: ContractHome, child: AcpChild, sessionId
 	await home.model.waitForUserText(SUBAGENT_MARKER, SUBAGENT_RUNS);
 }
 
+/**
+ * A port another process holds is never watched, so a probe to it would go unseen. On CI (where `CI` is set) the
+ * test fails and names the port. Elsewhere the notice that `watchDiscoveryPorts` prints is the record.
+ */
+function expectEveryDiscoveryPortWatched(watch: DiscoveryPortWatch): void {
+	if (process.env.CI) expect(watch.skipped).toEqual([]);
+}
+
 describe("no foreign connections in configured mode", () => {
 	it("a session start, a prompt turn, a tool call and an in-thread sub-agent batch contact nothing outside the machine", async () => {
 		const home = await contract.home({ discovery: "configured", workerThreads: 0 });
 		const watch = watchDiscoveryPorts();
 		try {
+			expectEveryDiscoveryPortWatched(watch);
 			const { child, sessionId } = await openSession(home);
 			await runEveryKindOfWork(home, child, sessionId);
 
@@ -82,6 +98,7 @@ describe("no foreign connections in configured mode", () => {
 		const home = await contract.home({ discovery: "configured", workerThreads: 1 });
 		const watch = watchDiscoveryPorts();
 		try {
+			expectEveryDiscoveryPortWatched(watch);
 			const { child, sessionId } = await openSession(home);
 			await runEveryKindOfWork(home, child, sessionId);
 
@@ -98,6 +115,7 @@ describe("no foreign connections in configured mode", () => {
 		const home = await contract.home({ discovery: "all" });
 		const watch = watchDiscoveryPorts();
 		try {
+			expectEveryDiscoveryPortWatched(watch);
 			await openSession(home);
 
 			console.log(`control recorded: ${[...home.proxy.seen, ...watch.hits].join("; ")}`);

@@ -41,6 +41,8 @@ export interface ContractHomeOptions {
 	workerThreads?: number;
 	/** `mcp.toolNameCollision` in the settings overlay. Desktop passes `error`, which is the default here. */
 	toolNameCollision?: "keep-first" | "error";
+	/** `secrets.enabled` in the settings overlay. Left out, the setting keeps its default, off. */
+	secretsEnabled?: boolean;
 	/**
 	 * The home's `secrets.yml` (a YAML array of entries). Given, the overlay turns `secrets.enabled` on, which is
 	 * how Desktop turns masking on. Left out, masking is off.
@@ -83,7 +85,10 @@ export async function createContractHome(options: ContractHomeOptions = {}): Pro
 			"goal:",
 			`  enabled: ${goalEnabled}`,
 			...(options.workerThreads === undefined ? [] : ["task:", `  workerThreads: ${options.workerThreads}`]),
-			...(options.secrets === undefined ? [] : ["secrets:", "  enabled: true"]),
+			// One `secrets:` block: given secrets.yml content turns masking on, and `secretsEnabled` sets it explicitly.
+			...(options.secrets === undefined && options.secretsEnabled === undefined
+				? []
+				: ["secrets:", `  enabled: ${options.secrets !== undefined || options.secretsEnabled === true}`]),
 			"",
 		].join("\n"),
 	);

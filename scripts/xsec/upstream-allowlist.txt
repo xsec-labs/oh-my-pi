@@ -14,6 +14,8 @@
 packages/coding-agent/src/config/all-settings.ts 2 packages/coding-agent/test/config/*.test.ts packages/coding-agent/test/settings-*.test.ts packages/coding-agent/test/config/settings-registry.test.ts
 packages/coding-agent/src/config/model-registry.ts 15 packages/coding-agent/test/config/model-registry.test.ts packages/coding-agent/test/model-registry*.test.ts packages/coding-agent/test/model-discovery.test.ts packages/coding-agent/test/model-resolver.test.ts
 packages/coding-agent/src/mcp/tool-bridge.ts 2 packages/coding-agent/test/mcp*.test.ts packages/coding-agent/test/mcp/*.test.ts
+packages/coding-agent/src/sdk.ts 6 packages/coding-agent/test/date-cwd-reminder.test.ts packages/coding-agent/test/secrets-*.test.ts packages/coding-agent/test/sdk-*.test.ts
+packages/coding-agent/src/session/session-handoff.ts 4 packages/coding-agent/test/agent-session-handoff.test.ts
 packages/coding-agent/src/modes/acp/acp-agent.ts 15 packages/coding-agent/test/acp-*.test.ts
 packages/coding-agent/src/session/agent-session.ts 16 packages/coding-agent/test/extensions-runner.test.ts
 packages/coding-agent/src/extensibility/extensions/wrapper.ts 6 packages/coding-agent/test/hook-tool-wrapper-input.test.ts packages/coding-agent/test/agent-session-acp-permission.test.ts packages/coding-agent/test/extensions-runner.test.ts

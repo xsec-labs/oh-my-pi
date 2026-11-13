@@ -109,6 +109,16 @@ A sync pull request closed without merging is not reopened. Delete its branch to
 
 **Runners.** GitHub-hosted only. The merge uses `git merge-tree --write-tree`, which needs git 2.38 or newer; `ubuntu-24.04` ships a newer git.
 
+## Known gaps in model discovery
+
+`models.discovery: configured` limits the discovery that `ModelRegistry` starts. Three paths sit outside that limit. Each one lists the condition under which it sends a request. The package 7 probe on the built binary decides whether one of them needs a fix before package 2.
+
+A registry built without settings follows the process's global settings. With none loaded, `all` applies, and that fallback is logged once.
+
+- **LiteLLM usage.** The usage provider for `litellm`, and for every `discovery.type: litellm` provider, is registered whatever `models.discovery` says. It requests `<base URL>/v2/user/info`, and `<base URL>/key/info` for keys that start with `sk-`, only when usage is read for a LiteLLM API key. The base URL is the provider's configured one, or the built-in default for `litellm`. This is usage reporting, not model discovery. The phase 0 probe saw no LiteLLM host at session start.
+- **Extension dynamic managers.** A provider that an extension registers with `fetchDynamicModels` runs its own function on every discovery pass, session start included. The limit does not filter these managers, and the guard does not see the function's requests. Desktop's extensions register no such provider today.
+- **Cursor.** In `configured` mode, Cursor discovery runs only when `cursor` is listed in `models.yml`. It then calls the configured base URL, or `CURSOR_DEFAULT_BASE_URL`, with the global `fetch`, and with an HTTP/2 client when that fails. Neither goes through the guard.
+
 ## Working locally
 
 ```sh

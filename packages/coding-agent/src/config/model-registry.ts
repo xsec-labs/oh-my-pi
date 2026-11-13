@@ -139,6 +139,7 @@ import {
 } from "./models-config";
 import type { ModelOverride, ModelsConfig, ProviderAuthMode } from "./models-config-schema";
 import { type Settings, settings } from "./settings";
+import { ModelDiscoveryLimit } from "../xsec/model-discovery";
 
 import { cfgDisabledProviders } from "./model-settings";
 import {
@@ -423,6 +424,7 @@ export class ModelRegistry {
 	#runtimeModelManagers: Map<string, { options: ModelManagerOptions<Api>; sourceId: string }> = new Map();
 	#ignoreLocalModelConfig: boolean;
 	#fetch: FetchImpl;
+	#discoveryLimit: ModelDiscoveryLimit;
 	#settings: Settings | undefined;
 	/** Registry this one mirrors (on another thread); see the constructor option. */
 	#owner: ModelRegistryOwner | undefined;
@@ -637,11 +639,13 @@ export class ModelRegistry {
 			settings: options?.settings,
 		};
 		this.#settings = options?.settings;
+		this.#discoveryLimit = new ModelDiscoveryLimit(options?.settings);
 		this.#fetch =
 			options?.fetch ??
 			(isBunTestRuntime()
 				? () => Promise.reject(new Error("network disabled in model-registry runtime test"))
 				: wrapFetchForExtraCa(fetch));
+		this.#fetch = this.#discoveryLimit.guardFetch(this.#fetch, providerId => this.#descriptorBaseUrl(providerId));
 		this.#modelsConfigFile = ModelsConfigFile.relocate(modelsPath ?? path.join(getAgentDir(), "models.yml"));
 		this.#cacheDbPath =
 			options?.cacheDbPath ?? (modelsPath ? path.join(path.dirname(modelsPath), "models.db") : undefined);
@@ -1332,6 +1336,7 @@ export class ModelRegistry {
 		this.#modelOverrides = modelOverrides;
 
 		this.#addImplicitDiscoverableProviders(configuredProviders);
+		this.#discoveryLimit.setConfiguredProviders(configuredProviders);
 		const configuredDiscoveryProviders = new Set(this.#discoverableProviders.map(provider => provider.provider));
 		this.#pendingStandardCacheProviders = new Set(
 			STARTUP_MODEL_CACHE_PROVIDER_IDS.filter(
@@ -2253,7 +2258,9 @@ export class ModelRegistry {
 			providerFilter
 				? this.#discoverableProviders.filter(provider => providerFilter.has(provider.provider))
 				: this.#discoverableProviders
-		).filter(provider => !disabledProviders.has(provider.provider));
+		)
+			.filter(provider => !disabledProviders.has(provider.provider))
+			.filter(provider => this.#discoveryLimit.allowsProvider(provider.provider));
 		const configuredDiscoveriesPromise =
 			selectedDiscoverableProviders.length === 0
 				? Promise.resolve<Array<ConfiguredModelDiscoveryResult & { provider: DiscoveryProviderConfig }>>([])
@@ -2805,12 +2812,14 @@ export class ModelRegistry {
 		const disabledProviders = getDisabledProviderIdsFromSettings(this.#settings);
 		const standardProviderDescriptors = PROVIDER_DESCRIPTORS.filter(descriptor => {
 			if (disabledProviders.has(descriptor.providerId)) return false;
+			if (!this.#discoveryLimit.allowsProvider(descriptor.providerId)) return false;
 			if (configuredDiscoveryProviders.has(descriptor.providerId)) return false;
 			if (this.#runtimeModelManagers.has(descriptor.providerId)) return false;
 			return providerFilter ? providerFilter.has(descriptor.providerId) : true;
 		});
 		const enabledSpecialProviderDescriptors = specialProviderDescriptors.filter(descriptor => {
 			if (disabledProviders.has(descriptor.providerId)) return false;
+			if (!this.#discoveryLimit.allowsProvider(descriptor.providerId)) return false;
 			if (configuredDiscoveryProviders.has(descriptor.providerId)) return false;
 			return providerFilter ? providerFilter.has(descriptor.providerId) : true;
 		});
@@ -2895,6 +2904,7 @@ export class ModelRegistry {
 			if (BUILT_IN_MODEL_MANAGER_PROVIDER_IDS[providerId] === true) continue;
 			if (bundledProviderIds[providerId] !== true) continue;
 			if (disabledProviders.has(providerId) || configuredDiscoveryProviders.has(providerId)) continue;
+			if (!this.#discoveryLimit.allowsProvider(providerId)) continue;
 			if (providerFilter && !providerFilter.has(providerId)) continue;
 			if (this.#runtimeModelManagers.has(providerId)) continue;
 			const modelsDev = modelsDevCatalogFallback(providerId, this.#fetch);
@@ -2926,7 +2936,8 @@ export class ModelRegistry {
 	): Promise<BuiltInDiscoveryResult> {
 		let failure: string | undefined;
 		try {
-			const manager = createModelManager({ ...options, cacheDbPath: this.#cacheDbPath });
+			const limitedOptions = this.#discoveryLimit.withoutCatalogSource(options);
+			const manager = createModelManager({ ...limitedOptions, cacheDbPath: this.#cacheDbPath });
 			const result = await withModelDiscoveryTimeout(RUNTIME_DYNAMIC_MODEL_FETCH_TIMEOUT_MS, () =>
 				manager.refresh(strategy),
 			);

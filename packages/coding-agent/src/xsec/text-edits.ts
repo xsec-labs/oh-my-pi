@@ -36,6 +36,7 @@ export function applyTextEdits(
 	origin: string,
 	edits: readonly TextEdit[],
 ): { text: string; origin: string } {
+	if (edits.length === 0) return { text, origin };
 	if (!isDescendingDisjoint(edits)) {
 		let result = text;
 		let tags = origin;

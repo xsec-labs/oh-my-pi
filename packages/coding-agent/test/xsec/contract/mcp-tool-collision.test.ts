@@ -1,10 +1,11 @@
-import { describe, expect, it, setDefaultTimeout } from "bun:test";
+import { describe, expect, setDefaultTimeout } from "bun:test";
 import * as path from "node:path";
 import { logLines, rejectionOf, toolResultTexts, useContractSession } from "./harness";
 
 setDefaultTimeout(120_000);
 
 const contract = useContractSession();
+const { it } = contract;
 const MCP_FIXTURE = path.join(import.meta.dir, "fixtures", "mcp-fixture-server.ts");
 
 /**

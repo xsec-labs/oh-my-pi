@@ -1,9 +1,10 @@
-import { describe, expect, it, setDefaultTimeout } from "bun:test";
+import { describe, expect, setDefaultTimeout } from "bun:test";
 import { agentMessageText, useContractSession, userMessageTexts } from "./harness";
 
 setDefaultTimeout(120_000);
 
 const contract = useContractSession();
+const { it } = contract;
 
 describe("session/new and session/prompt", () => {
 	it("streams the fake model's text as agent message chunks and resolves with end_turn", async () => {

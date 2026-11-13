@@ -41,7 +41,8 @@ import { MEMORY_RECALL_CHANGES_MESSAGE_TYPE } from "@oh-my-pi/pi-coding-agent/me
 import type { MemoryBackend } from "@oh-my-pi/pi-coding-agent/memory-backend/types";
 import { type MnemopiSessionState, setMnemopiSessionState } from "@oh-my-pi/pi-coding-agent/mnemopi/state";
 import { createAgentSession, type ExtensionContext, type ExtensionFactory } from "@oh-my-pi/pi-coding-agent/sdk";
-import { obfuscateProviderContext, SecretObfuscator } from "@oh-my-pi/pi-coding-agent/secrets";
+import { SecretObfuscator } from "@oh-my-pi/pi-coding-agent/secrets";
+import { maskOutboundContext } from "@oh-my-pi/pi-coding-agent/xsec/outbound-context";
 import { AgentSession, type AgentSessionEvent } from "@oh-my-pi/pi-coding-agent/session/agent-session";
 import { AuthStorage } from "@oh-my-pi/pi-coding-agent/session/auth-storage";
 import { convertToLlm, wrapSteeringForModel } from "@oh-my-pi/pi-coding-agent/session/messages";
@@ -1694,7 +1695,7 @@ describe("AgentSession message pipeline", () => {
 			tools: [],
 		};
 		const before = structuredClone(context);
-		const outbound = obfuscateProviderContext(obfuscator, context);
+		const outbound = maskOutboundContext(obfuscator, context);
 		const plainBytes = Buffer.byteLength(JSON.stringify(context), "utf8");
 		const outboundBytes = Buffer.byteLength(JSON.stringify(outbound), "utf8");
 		const agent = new Agent({ initialState: { model: getBundledModel("openai", "gpt-4o-mini") } });
@@ -2046,7 +2047,8 @@ describe("AgentSession message pipeline", () => {
 					messages: [],
 					tools: [tool],
 				},
-				transformProviderContext: context => obfuscateProviderContext(obfuscator, context),
+				// The main turn's transform masks the prefix as sdk.ts does, so both turns send the same bytes for it.
+				transformProviderContext: context => maskOutboundContext(obfuscator, context),
 			});
 			const session = new AgentSession({
 				agent,

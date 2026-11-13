@@ -1,7 +1,7 @@
 import { describe, expect, it } from "bun:test";
-import type { Context, Tool } from "@oh-my-pi/pi-ai";
+import type { Context, DeveloperMessage, Message, Tool } from "@oh-my-pi/pi-ai";
 import { SecretObfuscator } from "../../src/secrets";
-import { maskOutboundContext, maskOutboundText } from "../../src/xsec/outbound-context";
+import { maskOutboundContext, maskOutboundMessages, maskOutboundText } from "../../src/xsec/outbound-context";
 
 /** A project folder name a secret rule matches. Made up for this test. */
 const FOLDER = "Tessel-Harbor-Quill";
@@ -29,6 +29,41 @@ const context: Context = {
 	messages: [],
 	tools: [readTool],
 };
+
+/** The text of each developer message in a list: a block list's text blocks, joined. */
+function developerTexts(messages: Message[]): string[] {
+	return messages.map(message => {
+		if (message.role !== "developer") throw new Error(`expected a developer message, got ${message.role}`);
+		if (typeof message.content === "string") return message.content;
+		return message.content.map(block => (block.type === "text" ? block.text : "")).join("");
+	});
+}
+
+describe("masking the harness-written messages", () => {
+	it("keeps a value out of a developer message the harness wrote, in a string or in blocks", () => {
+		const obfuscator = new SecretObfuscator([{ type: "plain", content: FOLDER }]);
+		const asString: DeveloperMessage = {
+			role: "developer",
+			content: `Job finished in ${FOLDER}.`,
+			attribution: "agent",
+			timestamp: 1,
+		};
+		const asBlocks: DeveloperMessage = {
+			role: "developer",
+			content: [{ type: "text", text: `Reminder: ${FOLDER}` }],
+			attribution: "agent",
+			timestamp: 2,
+		};
+		const masked = developerTexts(maskOutboundMessages(obfuscator, [asString, asBlocks]));
+
+		// The provider receives neither message with the folder name in it, and the placeholders restore to the original.
+		expect(masked.join("\n")).not.toContain(FOLDER);
+		expect(masked.map(text => obfuscator.deobfuscate(text))).toEqual([
+			`Job finished in ${FOLDER}.`,
+			`Reminder: ${FOLDER}`,
+		]);
+	});
+});
 
 describe("masking outside the messages", () => {
 	it("keeps a secret out of the system prompt and the tool descriptions, and restores it from the placeholder", () => {
@@ -59,5 +94,17 @@ describe("masking outside the messages", () => {
 		expect(maskOutboundContext(undefined, context)).toBe(context);
 		expect(maskOutboundContext(new SecretObfuscator([]), context)).toBe(context);
 		expect(maskOutboundText(undefined, `in ${FOLDER}`)).toBe(`in ${FOLDER}`);
+	});
+});
+
+describe("masking a context that is already masked", () => {
+	it("changes nothing, so a later pass sends the placeholders the first pass wrote, not new ones", () => {
+		const obfuscator = new SecretObfuscator([{ type: "plain", content: FOLDER }]);
+		const once = maskOutboundContext(obfuscator, context);
+		const twice = maskOutboundContext(obfuscator, once);
+
+		// A pass that rewrote a placeholder would send the model a token the session cannot restore.
+		expect(twice).toEqual(once);
+		expect(obfuscator.deobfuscate(twice.systemPrompt?.join("\n") ?? "")).toBe(SYSTEM_PROMPT.join("\n"));
 	});
 });

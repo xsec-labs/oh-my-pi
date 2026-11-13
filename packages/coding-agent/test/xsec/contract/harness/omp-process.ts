@@ -41,6 +41,8 @@ export interface ContractHomeOptions {
 	workerThreads?: number;
 	/** `mcp.toolNameCollision` in the settings overlay. Desktop passes `error`, which is the default here. */
 	toolNameCollision?: "keep-first" | "error";
+	/** `secrets.enabled` in the settings overlay. Left out, the setting keeps its default, off. */
+	secretsEnabled?: boolean;
 }
 
 /** Starts a fresh home for one test: its own agent directory, workspace, models file and settings overlay. */
@@ -78,6 +80,7 @@ export async function createContractHome(options: ContractHomeOptions = {}): Pro
 			"goal:",
 			`  enabled: ${goalEnabled}`,
 			...(options.workerThreads === undefined ? [] : ["task:", `  workerThreads: ${options.workerThreads}`]),
+			...(options.secretsEnabled === undefined ? [] : ["secrets:", `  enabled: ${options.secretsEnabled}`]),
 			"",
 		].join("\n"),
 	);

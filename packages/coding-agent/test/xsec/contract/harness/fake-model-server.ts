@@ -20,6 +20,8 @@ export interface FakeModelServer {
 	readonly baseUrl: string;
 	/** The body of every chat completions request received so far, in order. */
 	readonly requests: unknown[];
+	/** The exact bytes of every request body, in the order received: what a provider's wire carries. */
+	readonly rawRequests: string[];
 	/** Queues the answer to the next request that no route claims. A request with nothing queued is answered with `ok`. */
 	enqueue(reply: ScriptedReply): void;
 	/** Answers every request whose user messages contain `userText` with `reply`, without taking from the queue. */
@@ -40,6 +42,7 @@ const FALLBACK_REPLY: ScriptedReply = { content: ["ok"] };
 
 export function startFakeModelServer(): FakeModelServer {
 	const requests: unknown[] = [];
+	const rawRequests: string[] = [];
 	const queue: ScriptedReply[] = [];
 	const routes: { userText: string; reply: ScriptedReply }[] = [];
 	let waiters: Waiter[] = [];
@@ -59,8 +62,10 @@ export function startFakeModelServer(): FakeModelServer {
 			if (request.method !== "POST" || !pathname.endsWith("/chat/completions")) {
 				return new Response("not found", { status: 404 });
 			}
-			const body: unknown = await request.json();
+			const raw = await request.text();
+			const body: unknown = JSON.parse(raw);
 			requests.push(body);
+			rawRequests.push(raw);
 			// A route answers without taking from the queue, so the queued replies keep the order they were queued in.
 			const text = userTextOf(body);
 			const route = routes.find(candidate => text.includes(candidate.userText));
@@ -75,6 +80,7 @@ export function startFakeModelServer(): FakeModelServer {
 	return {
 		baseUrl: `http://127.0.0.1:${server.port}/v1`,
 		requests,
+		rawRequests,
 		enqueue(reply) {
 			queue.push(reply);
 		},

@@ -1,4 +1,4 @@
-import { describe, expect, it, setDefaultTimeout } from "bun:test";
+import { describe, expect, setDefaultTimeout } from "bun:test";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { startExtensionBridge, toolResultTexts, useContractSession } from "./harness";
@@ -6,6 +6,7 @@ import { startExtensionBridge, toolResultTexts, useContractSession } from "./har
 setDefaultTimeout(120_000);
 
 const contract = useContractSession();
+const { it } = contract;
 const APPROVAL_GATE = path.join(import.meta.dir, "fixtures", "approval-gate.ts");
 
 /** The arguments of a `write` call that creates `filePath` with fixed content. */

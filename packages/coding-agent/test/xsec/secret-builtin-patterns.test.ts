@@ -78,3 +78,27 @@ describe("pi-ai's credential rewrite", () => {
 		expect(redactSensitiveCredentials(GITHUB_TOKEN)).toBe("[github_token_redacted]");
 	});
 });
+
+// With no pattern disabled and secrets.enabled off, each call site behaves as upstream did before the fork.
+describe("default behaviour of the four upstream call sites", () => {
+	it("builds the obfuscator from every built-in entry (secrets/index.ts)", () => {
+		const entries = CREDENTIAL_PATTERNS.map(pattern => ({ friendlyName: pattern.name }));
+
+		expect(enabledBuiltinSecretEntries(entries)).toEqual(entries);
+	});
+
+	it("passes the session's flag through unchanged (sdk.ts and agent-session.ts)", () => {
+		expect(credentialShapeRedaction(true)).toBe(true);
+		expect(credentialShapeRedaction(false)).toBe(false);
+	});
+
+	it("turns the process-wide rewrite on and off with secrets.enabled (secrets/settings.ts)", () => {
+		expect(redactSensitiveCredentials(GITHUB_TOKEN)).toBe(GITHUB_TOKEN);
+
+		setSecretsEnabledForRedaction(true);
+		expect(redactSensitiveCredentials(GITHUB_TOKEN)).toBe("[github_token_redacted]");
+
+		setSecretsEnabledForRedaction(false);
+		expect(redactSensitiveCredentials(GITHUB_TOKEN)).toBe(GITHUB_TOKEN);
+	});
+});

@@ -69,7 +69,7 @@ CI uses GitHub-hosted runners only. Never attach a self-hosted runner to this re
    - it changes no file under `scripts/xsec/`, `packages/coding-agent/src/xsec/`, `packages/coding-agent/test/xsec/` or `.github/workflows/xsec-*.yml`, and no upstream workflow file (a new upstream workflow would start running in the fork);
    - it has at least one check, every check on its head is completed and green (`success` or `skipped`), and the commit status is not pending or failed.
 
-   Anything else stays open for review. No check needs to be required in the repository settings: the run reads the check results itself. Auto-merge happens on a scheduled or manual run, so the merge can wait up to a day after the checks finish.
+   Anything else stays open for review. No check needs to be required in the repository settings: the run reads the check results itself. Auto-merge happens on a scheduled or manual run, so the merge can wait up to a day after the checks finish. A skipped check counts as green, so a job that its own `if:` skips on a sync pull request cannot hold it up. Any new `if:` on a job in `xsec-ci.yml` needs a T-37 review for that reason.
 5. When `xsec` moves on while a sync pull request is open, the run rebuilds its branch on the new head, so the checks run on the merged result. It rebuilds only a branch that still holds the workflow's own merge. Any other content on a sync branch is left for a person.
 
 A sync pull request closed without merging is not reopened. Delete its branch to let a later run open a new one.

@@ -15,13 +15,6 @@ export const SYNC_BASE_BRANCH = "xsec";
 /** Check conclusions that count as green. A check that was skipped does not block. */
 const GREEN_CONCLUSIONS: ReadonlySet<string> = new Set(["success", "skipped"]);
 
-/**
- * The check that is red on upstream's full suite while the fork carries a known upstream failure: upstream's
- * test `browser-relay-detach` fails on this GitHub-hosted runner. Red still blocks an automatic merge. The
- * name only lets the run say which failure it is.
- */
-export const KNOWN_UPSTREAM_FAILURE_CHECK = "Test coding-agent native 3/3";
-
 const PLAIN_VERSION = /^(\d+)\.(\d+)\.(\d+)$/;
 const RELEASE_TAG = /^v(\d+\.\d+\.\d+)$/;
 
@@ -219,11 +212,7 @@ function checkReasons(runs: readonly CheckRunFact[], statusState: string | null)
 	for (const run of runs) {
 		if (run.status !== "completed") reasons.push(`check ${run.name} is ${run.status}`);
 		else if (!GREEN_CONCLUSIONS.has(run.conclusion ?? "")) {
-			reasons.push(
-				run.name === KNOWN_UPSTREAM_FAILURE_CHECK && run.conclusion === "failure"
-					? `check ${run.name} concluded failure: this is the known upstream failure (browser-relay-detach), so a person checks the job log shows it is the only failure, then reviews and merges the pull request`
-					: `check ${run.name} concluded ${run.conclusion ?? "without a conclusion"}`,
-			);
+			reasons.push(`check ${run.name} concluded ${run.conclusion ?? "without a conclusion"}`);
 		}
 	}
 	if (statusState === "pending" || statusState === "failure" || statusState === "error") {

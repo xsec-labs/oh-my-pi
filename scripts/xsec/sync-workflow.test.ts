@@ -11,6 +11,7 @@ const TOKEN_REFERENCE = /\$\{\{\s*secrets\.OMP_SYNC_TOKEN\s*\}\}/;
 interface Step {
 	uses?: unknown;
 	with?: Record<string, unknown>;
+	run?: unknown;
 }
 
 interface JobSpec {
@@ -74,6 +75,19 @@ describe("xsec sync workflow", () => {
 		const workflow = await loadWorkflow();
 		const jobsWithToken = Object.entries(workflow.jobs).filter(([, job]) => countTokenReferences(job) > 0);
 		expect(jobsWithToken.map(([name]) => name)).toHaveLength(1);
+	});
+
+	it("hands the token only to the steps that use it, never to the actions the job runs", async () => {
+		// An action runs in its job's environment, so a token set on the job would reach checkout and setup-bun.
+		const workflow = await loadWorkflow();
+		const job = workflow.jobs.sync;
+		expect(countTokenReferences(job.env)).toBe(0);
+		for (const step of job.steps ?? []) {
+			if (typeof step.uses === "string") expect(countTokenReferences(step)).toBe(0);
+		}
+		// The sync run itself must still get the token.
+		const sync = job.steps?.find(step => typeof step.run === "string" && step.run.includes("scripts/xsec/sync.ts"));
+		expect(countTokenReferences(sync)).toBe(1);
 	});
 
 	it("does not leave the token in the checkout's git configuration", async () => {

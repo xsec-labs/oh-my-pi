@@ -54,13 +54,23 @@ function handle(request: JsonRpcRequest): void {
 	}
 }
 
-let pending = "";
-process.stdin.setEncoding("utf8");
-process.stdin.on("data", (chunk: string) => {
-	pending += chunk;
-	for (let newline = pending.indexOf("\n"); newline >= 0; newline = pending.indexOf("\n")) {
-		const line = pending.slice(0, newline).trim();
-		pending = pending.slice(newline + 1);
-		if (line) handle(JSON.parse(line) as JsonRpcRequest);
+// A test that needs this server to come up late passes a gate file as the third argument. The server reads nothing
+// until that file exists, so the test decides when the server starts answering.
+async function serve(): Promise<void> {
+	const gatePath = process.argv[3];
+	if (gatePath) {
+		while (!(await Bun.file(gatePath).exists())) await Bun.sleep(10);
 	}
-});
+	let pending = "";
+	process.stdin.setEncoding("utf8");
+	process.stdin.on("data", (chunk: string) => {
+		pending += chunk;
+		for (let newline = pending.indexOf("\n"); newline >= 0; newline = pending.indexOf("\n")) {
+			const line = pending.slice(0, newline).trim();
+			pending = pending.slice(newline + 1);
+			if (line) handle(JSON.parse(line) as JsonRpcRequest);
+		}
+	});
+}
+
+void serve();

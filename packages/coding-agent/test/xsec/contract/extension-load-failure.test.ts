@@ -1,10 +1,11 @@
-import { describe, expect, it, setDefaultTimeout } from "bun:test";
+import { describe, expect, setDefaultTimeout } from "bun:test";
 import * as path from "node:path";
 import { logLines, startExtensionBridge, useContractSession } from "./harness";
 
 setDefaultTimeout(120_000);
 
 const contract = useContractSession();
+const { it } = contract;
 const BROKEN_EXTENSION = path.join(import.meta.dir, "fixtures", "broken-extension.ts");
 
 describe("extension load failure", () => {

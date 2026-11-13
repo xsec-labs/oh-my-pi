@@ -1,4 +1,4 @@
-import { describe, expect, it, setDefaultTimeout } from "bun:test";
+import { describe, expect, setDefaultTimeout } from "bun:test";
 import {
 	type AcpChild,
 	type ContractHome,
@@ -11,6 +11,7 @@ import {
 setDefaultTimeout(120_000);
 
 const contract = useContractSession();
+const { it } = contract;
 
 /**
  * Sub-agent runs in one batch. The pool places a run on a worker only once nine runs are in flight

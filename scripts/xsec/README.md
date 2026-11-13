@@ -126,6 +126,12 @@ A registry built without settings follows the process's global settings. With no
 - **Extension dynamic managers.** A provider that an extension registers with `fetchDynamicModels` runs its own function on every discovery pass, session start included. The limit does not filter these managers, and the guard does not see the function's requests. Desktop's extensions register no such provider today.
 - **Cursor.** In `configured` mode, Cursor discovery runs only when `cursor` is listed in `models.yml`. It then calls the configured base URL, or `CURSOR_DEFAULT_BASE_URL`, with the global `fetch`, and with an HTTP/2 client when that fails. Neither goes through the guard.
 
+## Masking limits
+
+Each entry is a case where the ACP client can see a placeholder, and why.
+
+- **Sub-agent progress snapshots.** A sub-agent's progress carries the tail of its output. A placeholder that a snapshot's truncation cuts short cannot be restored, so the client can show that partial text. Nothing is held back for it. The sub-agent's final output is restored whole.
+
 ## Working locally
 
 ```sh

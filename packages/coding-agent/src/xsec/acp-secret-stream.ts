@@ -16,7 +16,8 @@ import {
 	deobfuscateSessionContext,
 	deobfuscateToolArguments,
 } from "../secrets/message-transform";
-import type { SecretObfuscator } from "../secrets/obfuscator";
+import type { JsonValue, SecretObfuscator } from "../secrets/obfuscator";
+import { mapJsonStrings } from "../secrets/placeholder-scan";
 
 /** What the restorer reads from a session: its obfuscator, which `setObfuscator` may replace mid-run. */
 export interface AcpSecretOwner {
@@ -228,7 +229,8 @@ function restoreMessageUpdate(
 /**
  * The events the ACP client is sent in place of `event`, in order. Streamed text is restored and its
  * placeholder-shaped tails are held back until they resolve or their block ends. Tool arguments and the
- * tool intent are restored. A session with no secrets gets its events back unchanged.
+ * tool intent, and every string of a tool's partial result, are restored. A session with no secrets gets its events
+ * back unchanged.
  */
 export function restoreAcpSessionEvents(owner: AcpSecretOwner, event: AgentSessionEvent): AgentSessionEvent[] {
 	const obfuscator = activeObfuscator(owner);
@@ -252,7 +254,13 @@ export function restoreAcpSessionEvents(owner: AcpSecretOwner, event: AgentSessi
 			];
 		case "tool_execution_update":
 			if (!obfuscator) return [event];
-			return [{ ...event, args: restoreArguments(obfuscator, event.args) }];
+			return [
+				{
+					...event,
+					args: restoreArguments(obfuscator, event.args),
+					partialResult: restorePartialResult(obfuscator, event.partialResult),
+				},
+			];
 		default:
 			return [event];
 	}
@@ -260,6 +268,15 @@ export function restoreAcpSessionEvents(owner: AcpSecretOwner, event: AgentSessi
 
 function restoreArguments(obfuscator: SecretObfuscator, args: unknown): unknown {
 	return isRecord(args) ? deobfuscateToolArguments(obfuscator, args) : args;
+}
+
+/**
+ * A tool's partial result with every string restored. A sub-agent's progress snapshot carries the model's text,
+ * so its placeholders reach the client here. Keys and non-string values pass through. A placeholder that a
+ * snapshot cuts short cannot be restored, and nothing is held back for it.
+ */
+function restorePartialResult<T>(obfuscator: SecretObfuscator, partialResult: T): T {
+	return mapJsonStrings(partialResult as JsonValue, text => obfuscator.deobfuscate(text)) as T;
 }
 
 /** Restores a whole text the client receives in one chunk, such as a fallback reply from the last turn. */

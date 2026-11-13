@@ -7,11 +7,12 @@ import { isRecord } from "@oh-my-pi/pi-utils";
 
 /**
  * One scripted answer: `content` is streamed as text deltas, or `hold` keeps the response open instead.
- * `thinking` is streamed first as reasoning deltas. `toolCall` streams a tool call in place of the text,
- * so the client runs that tool with `arguments`.
+ * `content` may be a function of the request body, for an answer that depends on what the test has already
+ * seen (a placeholder the client sent). `thinking` is streamed first as reasoning deltas. `toolCall` streams a
+ * tool call in place of the text, so the client runs that tool with `arguments`.
  */
 export interface ScriptedReply {
-	content: string[];
+	content: string[] | ((request: unknown) => string[]);
 	thinking?: string[];
 	hold?: boolean;
 	toolCall?: { name: string; arguments: string };
@@ -32,6 +33,8 @@ export interface FakeModelServer {
 	waitForRequests(count: number): Promise<void>;
 	/** Resolves once at least `count` requests whose user messages contain `userText` have been received. */
 	waitForUserText(userText: string, count: number): Promise<void>;
+	/** Resolves once at least `count` requests whose body contains `text` in any message, of any role, have been received. */
+	waitForText(text: string, count: number): Promise<void>;
 	stop(): void;
 }
 
@@ -75,7 +78,7 @@ export function startFakeModelServer(): FakeModelServer {
 			const ready = waiters.filter(waiter => waiter.satisfied());
 			waiters = waiters.filter(waiter => !ready.includes(waiter));
 			for (const waiter of ready) waiter.resolve();
-			return streamReply(reply);
+			return streamReply(reply, body);
 		},
 	});
 
@@ -95,6 +98,9 @@ export function startFakeModelServer(): FakeModelServer {
 		waitForUserText(userText, count) {
 			return until(() => requests.filter(body => userTextOf(body).includes(userText)).length >= count);
 		},
+		waitForText(text, count) {
+			return until(() => requests.filter(body => JSON.stringify(body).includes(text)).length >= count);
+		},
 		stop() {
 			server.stop(true);
 		},
@@ -110,7 +116,7 @@ function userTextOf(body: unknown): string {
 		.join("\n");
 }
 
-function streamReply(reply: ScriptedReply): Response {
+function streamReply(reply: ScriptedReply, request: unknown): Response {
 	const encoder = new TextEncoder();
 	const event = (payload: unknown): Uint8Array => encoder.encode(`data: ${JSON.stringify(payload)}\n\n`);
 	const chunk = (delta: Record<string, unknown>, finishReason: string | null): unknown => ({
@@ -135,7 +141,8 @@ function streamReply(reply: ScriptedReply): Response {
 				controller.close();
 				return;
 			}
-			for (const text of reply.content) controller.enqueue(event(chunk({ content: text }, null)));
+			const content = typeof reply.content === "function" ? reply.content(request) : reply.content;
+			for (const text of content) controller.enqueue(event(chunk({ content: text }, null)));
 			controller.enqueue(event(chunk({}, "stop")));
 			controller.enqueue(encoder.encode("data: [DONE]\n\n"));
 			controller.close();

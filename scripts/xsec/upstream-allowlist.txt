@@ -17,3 +17,7 @@ packages/coding-agent/src/mcp/tool-bridge.ts 2 packages/coding-agent/test/mcp*.t
 packages/coding-agent/src/sdk.ts 6 packages/coding-agent/test/date-cwd-reminder.test.ts packages/coding-agent/test/secrets-*.test.ts packages/coding-agent/test/sdk-*.test.ts
 packages/coding-agent/src/session/session-handoff.ts 4 packages/coding-agent/test/agent-session-handoff.test.ts
 packages/coding-agent/src/modes/acp/acp-agent.ts 13 packages/coding-agent/test/acp-*.test.ts
+packages/coding-agent/src/session/agent-session.ts 17 packages/coding-agent/test/agent-session-message-pipeline.test.ts packages/coding-agent/test/agent-session-side-state.test.ts packages/coding-agent/test/btw-*.test.ts packages/coding-agent/test/session-stop-continuation-recap.test.ts
+packages/coding-agent/src/session/session-provider-boundary.ts 6 packages/coding-agent/test/agent-session-message-pipeline.test.ts packages/coding-agent/test/compaction-speculation.test.ts
+packages/coding-agent/src/session/session-maintenance.ts 4 packages/coding-agent/test/session-maintenance-compaction-cache-key.test.ts packages/coding-agent/test/compaction-speculation.test.ts
+packages/coding-agent/test/agent-session-message-pipeline.test.ts 8 packages/coding-agent/test/agent-session-message-pipeline.test.ts

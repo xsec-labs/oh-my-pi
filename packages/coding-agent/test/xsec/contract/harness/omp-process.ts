@@ -39,6 +39,8 @@ export interface ContractHomeOptions {
 	discovery?: "all" | "configured";
 	/** `task.workerThreads` in the settings overlay. Left out, the setting keeps its default. */
 	workerThreads?: number;
+	/** `compaction.keepRecentTokens` in the settings overlay. A short test history compacts only with a small value. */
+	compactionKeepRecentTokens?: number;
 	/** `mcp.toolNameCollision` in the settings overlay. Desktop passes `error`, which is the default here. */
 	toolNameCollision?: "keep-first" | "error";
 	/** `secrets.enabled` in the settings overlay. Left out, the setting keeps its default, off. */
@@ -85,6 +87,9 @@ export async function createContractHome(options: ContractHomeOptions = {}): Pro
 			"goal:",
 			`  enabled: ${goalEnabled}`,
 			...(options.workerThreads === undefined ? [] : ["task:", `  workerThreads: ${options.workerThreads}`]),
+			...(options.compactionKeepRecentTokens === undefined
+				? []
+				: ["compaction:", `  keepRecentTokens: ${options.compactionKeepRecentTokens}`]),
 			// One `secrets:` block: given secrets.yml content turns masking on, and `secretsEnabled` sets it explicitly.
 			...(options.secrets === undefined && options.secretsEnabled === undefined
 				? []

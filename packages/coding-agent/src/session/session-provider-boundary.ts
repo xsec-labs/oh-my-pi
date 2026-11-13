@@ -9,9 +9,10 @@ import type { ModelRegistry } from "../config/model-registry";
 import { formatModelString } from "../config/model-resolver";
 import type { Settings } from "../config/settings";
 import { InternalUrlRouter, type LocalProtocolOptions } from "../internal-urls";
-import { deobfuscateSessionContext, obfuscateMessages } from "../secrets/message-transform";
+import { deobfuscateSessionContext } from "../secrets/message-transform";
 import type { SecretObfuscator } from "../secrets/obfuscator";
 import { stripPendingSecretPlaceholderSuffix } from "../secrets/placeholder";
+import { maskOutboundMessages } from "../xsec/outbound-context";
 import { normalizeModelContextImages } from "../utils/image-loading";
 import { imageAttachmentSource } from "@oh-my-pi/pi-tui/prompt/image-source";
 import { describeAttachedImagesForTextModel, shouldDescribeImagesForTextModel } from "../utils/image-vision-fallback";
@@ -215,8 +216,7 @@ export class SessionProviderBoundary {
 	/** Converts side-request messages through the session's secret boundary. */
 	convertToLlmForSideRequest(messages: AgentMessage[]): Message[] {
 		const converted = convertToLlm(messages);
-		const obfuscator = this.#host.obfuscator();
-		return obfuscator ? obfuscateMessages(obfuscator, converted) : converted;
+		return maskOutboundMessages(this.#host.obfuscator(), converted);
 	}
 
 	/** Converts session messages using the configured pre-LLM pipeline. */

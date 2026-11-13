@@ -221,12 +221,12 @@ import {
 	deobfuscateAssistantContent,
 	deobfuscateSessionContext,
 	deobfuscateToolArguments,
-	obfuscateProviderContext,
 } from "../secrets/message-transform";
 import type { SecretObfuscator } from "../secrets/obfuscator";
 import { USER_AWAIT_ID } from "../registry/agent-awaits";
 import { type AgentRef, AgentRegistry, type AgentRegistryApi } from "../registry/agent-registry";
 import { cfgSecretsEnabled } from "../secrets/settings";
+import { maskOutboundContext, maskOutboundText } from "../xsec/outbound-context";
 import { releaseSharpshooterSession } from "../sharpshooter/backend";
 import { flushSharpshooterExtraction } from "../sharpshooter/extract";
 import { toolReadsSkillUris } from "../system-prompt";
@@ -11975,15 +11975,18 @@ export class AgentSession implements SettingsScope, AgentViewSession {
 		if (titleSignal.aborted || costGate.check()) return null;
 		// The title request carries user text, so it follows this session's own credential
 		// redaction policy like its conversation requests (see `settingsAwareStreamFn`).
+		// The title model is called outside the provider context transform, so the first message and the system
+		// prompt are masked here, and the title it returns is restored before the session stores it.
+		const systemPrompt = customSystemPrompt ?? this.#titleSystemPrompt;
 		const title = await withCredentialRedaction(cfgSecretsEnabled.get(this.settings), () =>
 			generateSessionTitle(
-				firstMessage,
+				maskOutboundText(this.#obfuscator, firstMessage),
 				this.#modelRegistry,
 				this.settings,
 				sessionId,
 				this.model,
 				provider => buildSessionMetadata(sessionId, provider, this.#modelRegistry.authStorage),
-				customSystemPrompt ?? this.#titleSystemPrompt,
+				systemPrompt === undefined ? undefined : maskOutboundText(this.#obfuscator, systemPrompt),
 				titleSignal,
 				parentSessionId,
 				message => {
@@ -11993,7 +11996,8 @@ export class AgentSession implements SettingsScope, AgentViewSession {
 			),
 		);
 		if (await this.#sessionGenerationChanged(sessionGeneration)) return null;
-		return !titleSignal.aborted && this.sessionId === parentSessionId ? title : null;
+		if (titleSignal.aborted || this.sessionId !== parentSessionId || title === null) return null;
+		return this.#deobfuscateFromProvider(title);
 	}
 
 	/**
@@ -13774,8 +13778,9 @@ export class AgentSession implements SettingsScope, AgentViewSession {
 				`Model ${modelDescription} cannot support tools: false with historical tool calls. Omit tools: false or start from tool-free history.`,
 			);
 		}
-		// Apply after context transforms, without mutating a potentially shared context.
-		const context = obfuscateProviderContext(
+		// Apply after context transforms, without mutating a potentially shared context. The system prompt and the
+		// developer messages the harness wrote are masked too, as the main turn's request masks them.
+		const context = maskOutboundContext(
 			this.#obfuscator,
 			args.tools === false ? { ...sideContext, tools: [] } : sideContext,
 		);

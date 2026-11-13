@@ -1,0 +1,231 @@
+$ bun scripts/ci-test-ts.ts coding-agent-native
+Running 28 test command(s), up to 4 in parallel (OMP_TEST_CONCURRENCY=<n> to lower); 4 cores, --parallel=1 per chunk.
+✗ packages/coding-agent (native/tooling/browser/unit bucket; 1120 files; parallel=1 chunk 1/112; 10 files) [1.1s]
+
+✗ packages/coding-agent (native/tooling/browser/unit bucket; 1120 files; parallel=1 chunk 1/112; 10 files) (exit 137)
+$ bun test --only-failures test/acp-agent.test.ts test/acp-builtins.test.ts test/acp-stdout-hygiene.test.ts test/activity-index.test.ts test/advisor-context-maintenance.test.ts test/advisor-memory.test.ts test/advisor-provider-options-parity.test.ts test/advisor-tool-call-loop-guard.test.ts test/advisor-tool-result-eviction.test.ts test/advisor-watchdog.test.ts --parallel=1 --timeout=120000
+
+bun test v1.4.4 (38afee6c8) 1x PARALLEL
+
+[watchdog] chunk exceeded 1s; killed with SIGKILL (OMP_TEST_CHUNK_TIMEOUT to change)
+✗ packages/coding-agent (native/tooling/browser/unit bucket; 1120 files; parallel=1 chunk 5/112; 10 files) [1.1s]
+
+✗ packages/coding-agent (native/tooling/browser/unit bucket; 1120 files; parallel=1 chunk 5/112; 10 files) (exit 137)
+$ bun test --only-failures test/agent-session-plan-compact-hook-instructions.test.ts test/agent-session-prewalk-auto.test.ts test/agent-session-queued-steer-delivery.test.ts test/agent-session-remote-compaction-switch.test.ts test/agent-session-resolve-reminder.test.ts test/agent-session-responses-body-read-timeout.test.ts test/agent-session-retry-cap.test.ts test/agent-session-retry-fallback.test.ts test/agent-session-retry-recovery.test.ts test/agent-session-skill-image.test.ts --parallel=1 --timeout=120000
+
+bun test v1.4.4 (38afee6c8) 1x PARALLEL
+
+[watchdog] chunk exceeded 1s; killed with SIGKILL (OMP_TEST_CHUNK_TIMEOUT to change)
+✗ packages/coding-agent (native/tooling/browser/unit bucket; 1120 files; parallel=1 chunk 9/112; 10 files) [1.1s]
+
+✗ packages/coding-agent (native/tooling/browser/unit bucket; 1120 files; parallel=1 chunk 9/112; 10 files) (exit 137)
+$ bun test --only-failures test/autoresearch-git.test.ts test/autoresearch-state.test.ts test/autoresearch-tools.test.ts test/available-commands.test.ts test/bash-acp-terminal.test.ts test/bash-autobg-timer.test.ts test/bash-executor.test.ts test/bash-failure-result.test.ts test/bash-job-lifecycle.test.ts test/bash-session-state.test.ts --parallel=1 --timeout=120000
+
+bun test v1.4.4 (38afee6c8) 1x PARALLEL
+
+[watchdog] chunk exceeded 1s; killed with SIGKILL (OMP_TEST_CHUNK_TIMEOUT to change)
+✗ packages/coding-agent (native/tooling/browser/unit bucket; 1120 files; parallel=1 chunk 13/112; 10 files) [1.1s]
+
+✗ packages/coding-agent (native/tooling/browser/unit bucket; 1120 files; parallel=1 chunk 13/112; 10 files) (exit 137)
+$ bun test --only-failures test/cli-extension-path.test.ts test/cli-goal-flag.test.ts test/cli-license.test.ts test/cli-max-time-flag.test.ts test/cli-no-context-files.test.ts test/cli-non-tty-launch.test.ts test/cli-print-thoughts-flag.test.ts test/cli-provider-model-deferral.test.ts test/cli-responses-websocket-recovery.test.ts test/cli-resume-model-fallback.test.ts --parallel=1 --timeout=120000
+
+bun test v1.4.4 (38afee6c8) 1x PARALLEL
+
+[watchdog] chunk exceeded 1s; killed with SIGKILL (OMP_TEST_CHUNK_TIMEOUT to change)
+✗ packages/coding-agent (native/tooling/browser/unit bucket; 1120 files; parallel=1 chunk 17/112; 10 files) [1.1s]
+
+✗ packages/coding-agent (native/tooling/browser/unit bucket; 1120 files; parallel=1 chunk 17/112; 10 files) (exit 137)
+$ bun test --only-failures test/collab/read-only.test.ts test/collab/registry-smoke.test.ts test/collab/registry.test.ts test/collab/relay-client-backpressure.test.ts test/collab/relay-client-isolation.test.ts test/collab/relay-client-reconnect.test.ts test/collab/replication-shrink.test.ts test/collab/steer-queue.test.ts test/commit-agent-model-routing.test.ts test/commit-conventional.test.ts --parallel=1 --timeout=120000
+
+bun test v1.4.4 (38afee6c8) 1x PARALLEL
+
+[watchdog] chunk exceeded 1s; killed with SIGKILL (OMP_TEST_CHUNK_TIMEOUT to change)
+✗ packages/coding-agent (native/tooling/browser/unit bucket; 1120 files; parallel=1 chunk 29/112; 10 files) [1.1s]
+
+✗ packages/coding-agent (native/tooling/browser/unit bucket; 1120 files; parallel=1 chunk 29/112; 10 files) (exit 137)
+$ bun test --only-failures test/export-html-themes.test.ts test/extensibility/custom-commands/annotate.test.ts test/extensibility/custom-commands/ci-green.test.ts test/extensibility/custom-commands/review.test.ts test/extensibility/legacy-pi-bundled-subpath-overrides.test.ts test/extensibility/legacy-pi-bundled-virtual.test.ts test/extensibility/legacy-pi-canonical-require.test.ts test/extensibility/legacy-pi-default-resource-loader.test.ts test/extensibility/legacy-pi-inplace-load.test.ts test/extensibility/legacy-pi-override-fallback.test.ts --parallel=1 --timeout=120000
+
+bun test v1.4.4 (38afee6c8) 1x PARALLEL
+
+[watchdog] chunk exceeded 1s; killed with SIGKILL (OMP_TEST_CHUNK_TIMEOUT to change)
+✗ packages/coding-agent (native/tooling/browser/unit bucket; 1120 files; parallel=1 chunk 21/112; 10 files) [1.1s]
+
+✗ packages/coding-agent (native/tooling/browser/unit bucket; 1120 files; parallel=1 chunk 21/112; 10 files) (exit 137)
+$ bun test --only-failures test/core/python-kernel-env.test.ts test/core/python-kernel-session.test.ts test/core/python-runner.integration.test.ts test/core/python-tool-bridge.test.ts test/cost-gate-skill-description.test.ts test/cost-gate.test.ts test/credential-pin.test.ts test/cursor-exec.test.ts test/dap-config-precedence.test.ts test/debug/dap-config.test.ts --parallel=1 --timeout=120000
+
+bun test v1.4.4 (38afee6c8) 1x PARALLEL
+
+[watchdog] chunk exceeded 1s; killed with SIGKILL (OMP_TEST_CHUNK_TIMEOUT to change)
+✗ packages/coding-agent (native/tooling/browser/unit bucket; 1120 files; parallel=1 chunk 25/112; 10 files) [1.1s]
+
+✗ packages/coding-agent (native/tooling/browser/unit bucket; 1120 files; parallel=1 chunk 25/112; 10 files) (exit 137)
+$ bun test --only-failures test/error-line.test.ts test/eval-preludes.test.ts test/eval/agent-bridge-policy.test.ts test/eval/browser-prelude-facade.test.ts test/eval/budget-bridge.test.ts test/eval/console-output.test.ts test/eval/console-table.test.ts test/eval/context-manager-startup.test.ts test/eval/eval-args-stream.test.ts test/eval/helpers-local-roots.test.ts --parallel=1 --timeout=120000
+
+bun test v1.4.4 (38afee6c8) 1x PARALLEL
+
+[watchdog] chunk exceeded 1s; killed with SIGKILL (OMP_TEST_CHUNK_TIMEOUT to change)
+✗ packages/coding-agent (native/tooling/browser/unit bucket; 1120 files; parallel=1 chunk 33/112; 10 files) [1.1s]
+
+✗ packages/coding-agent (native/tooling/browser/unit bucket; 1120 files; parallel=1 chunk 33/112; 10 files) (exit 137)
+$ bun test --only-failures test/hindsight-client.test.ts test/hindsight-content.test.ts test/hindsight-conversation-timestamps.test.ts test/hindsight-mental-models.test.ts test/hindsight-mm-cache-stability.test.ts test/hindsight-outbox.test.ts test/hindsight-recall-failure.test.ts test/hindsight-retention-cache.test.ts test/hindsight/client.test.ts test/hindsight/transcript.test.ts --parallel=1 --timeout=120000
+
+bun test v1.4.4 (38afee6c8) 1x PARALLEL
+
+[watchdog] chunk exceeded 1s; killed with SIGKILL (OMP_TEST_CHUNK_TIMEOUT to change)
+✗ packages/coding-agent (native/tooling/browser/unit bucket; 1120 files; parallel=1 chunk 41/112; 10 files) [1.0s]
+
+✗ packages/coding-agent (native/tooling/browser/unit bucket; 1120 files; parallel=1 chunk 41/112; 10 files) (exit 137)
+$ bun test --only-failures test/issue-973-legacy-pi-plugin.test.ts test/issue-980-bedrock-priority.test.ts test/issue-9816-inflight-wait-focus-rebuild.test.ts test/issue-983-multi-file-extension.test.ts test/issue-986-compaction-auth-fallback.test.ts test/issue-9908-repro.test.ts test/job-widgets/author.test.ts test/job-widgets/bash-widget.test.ts test/job-widgets/derivation.test.ts test/job-widgets/model-chain.test.ts --parallel=1 --timeout=120000
+
+bun test v1.4.4 (38afee6c8) 1x PARALLEL
+
+[watchdog] chunk exceeded 1s; killed with SIGKILL (OMP_TEST_CHUNK_TIMEOUT to change)
+✗ packages/coding-agent (native/tooling/browser/unit bucket; 1120 files; parallel=1 chunk 37/112; 10 files) [1.1s]
+
+✗ packages/coding-agent (native/tooling/browser/unit bucket; 1120 files; parallel=1 chunk 37/112; 10 files) (exit 137)
+$ bun test --only-failures test/interactive-mode-optimistic-skill-reconcile.test.ts test/interactive-mode-plan-review.test.ts test/interactive-mode-restart-profile.test.ts test/interactive-mode-restart.test.ts test/interactive-mode-status.test.ts test/interactive-mode-vibe-toggle.test.ts test/interactive-terminal-e2e.test.ts test/internal-urls/caller-root-ab.test.ts test/internal-urls/mcp-protocol.test.ts test/internal-urls/memory-protocol.test.ts --parallel=1 --timeout=120000
+
+bun test v1.4.4 (38afee6c8) 1x PARALLEL
+
+[watchdog] chunk exceeded 1s; killed with SIGKILL (OMP_TEST_CHUNK_TIMEOUT to change)
+✗ packages/coding-agent (native/tooling/browser/unit bucket; 1120 files; parallel=1 chunk 45/112; 10 files) [1.1s]
+
+✗ packages/coding-agent (native/tooling/browser/unit bucket; 1120 files; parallel=1 chunk 45/112; 10 files) (exit 137)
+$ bun test --only-failures test/lsp/mux-server-key.test.ts test/lsp/reconcile-open-files.test.ts test/lsp/reload-configuration-params.test.ts test/lsp/shared-client-log-context.test.ts test/main-auto-resume-model-restore.test.ts test/main-model-scope-notification.test.ts test/main-no-session-resume-picker.test.ts test/main-session-resolution-error.test.ts test/marketplace/fetcher.test.ts test/marketplace/project-scope.test.ts --parallel=1 --timeout=120000
+
+bun test v1.4.4 (38afee6c8) 1x PARALLEL
+
+[watchdog] chunk exceeded 1s; killed with SIGKILL (OMP_TEST_CHUNK_TIMEOUT to change)
+✗ packages/coding-agent (native/tooling/browser/unit bucket; 1120 files; parallel=1 chunk 49/112; 10 files) [1.1s]
+
+✗ packages/coding-agent (native/tooling/browser/unit bucket; 1120 files; parallel=1 chunk 49/112; 10 files) (exit 137)
+$ bun test --only-failures test/mcp/tool-progress.test.ts test/memories/clear-project-scope.test.ts test/memories/instructions.test.ts test/memories/isolation.test.ts test/memories/stage1-input.test.ts test/memory-backend-resolve.test.ts test/memory-recall-resume.test.ts test/memory-redaction.test.ts test/memory-session-storage.test.ts test/memory-tools.test.ts --parallel=1 --timeout=120000
+
+bun test v1.4.4 (38afee6c8) 1x PARALLEL
+
+[watchdog] chunk exceeded 1s; killed with SIGKILL (OMP_TEST_CHUNK_TIMEOUT to change)
+✗ packages/coding-agent (native/tooling/browser/unit bucket; 1120 files; parallel=1 chunk 61/112; 10 files) [1.1s]
+
+✗ packages/coding-agent (native/tooling/browser/unit bucket; 1120 files; parallel=1 chunk 61/112; 10 files) (exit 137)
+$ bun test --only-failures test/rpc-wire/generated.test.ts test/run-status.test.ts test/runner-cache-restage.test.ts test/sdk-async-result-routing.test.ts test/sdk-autolearn-active-tools.test.ts test/sdk-custom-tools-per-session-binding.test.ts test/sdk-default-role-discovery-local-provider.test.ts test/sdk-dialect.test.ts test/sdk-edit-store-reset.test.ts test/sdk-file-write-fallback-extension.test.ts --parallel=1 --timeout=120000
+
+bun test v1.4.4 (38afee6c8) 1x PARALLEL
+
+[watchdog] chunk exceeded 1s; killed with SIGKILL (OMP_TEST_CHUNK_TIMEOUT to change)
+✗ packages/coding-agent (native/tooling/browser/unit bucket; 1120 files; parallel=1 chunk 57/112; 10 files) [1.1s]
+
+✗ packages/coding-agent (native/tooling/browser/unit bucket; 1120 files; parallel=1 chunk 57/112; 10 files) (exit 137)
+$ bun test --only-failures test/read-cli-image-question.test.ts test/read-cli-mcp-resource.test.ts test/read-cli-mcp-slow-connect.test.ts test/read-cli-skill.test.ts test/read-column-truncation-snapshot.test.ts test/read-display-budget.test.ts test/read-edit-out-of-cwd.test.ts test/read-edit-seen-lines.test.ts test/read-leading-context-budget.test.ts test/read-multi-range.test.ts --parallel=1 --timeout=120000
+
+bun test v1.4.4 (38afee6c8) 1x PARALLEL
+
+[watchdog] chunk exceeded 1s; killed with SIGKILL (OMP_TEST_CHUNK_TIMEOUT to change)
+✗ packages/coding-agent (native/tooling/browser/unit bucket; 1120 files; parallel=1 chunk 53/112; 10 files) [1.1s]
+
+✗ packages/coding-agent (native/tooling/browser/unit bucket; 1120 files; parallel=1 chunk 53/112; 10 files) (exit 137)
+$ bun test --only-failures test/modes/controllers/event-controller-read-grouping.test.ts test/modes/controllers/event-controller-task-async-updates.test.ts test/modes/controllers/event-controller-tool-intent.test.ts test/modes/controllers/event-controller-toolcall-finalize.test.ts test/modes/controllers/jobs-command.test.ts test/modes/controllers/memory-command.test.ts test/modes/controllers/omfg-controller.test.ts test/modes/noninteractive-dispose.test.ts test/modes/utils/render-initial-messages.test.ts test/motion-settings.test.ts --parallel=1 --timeout=120000
+
+bun test v1.4.4 (38afee6c8) 1x PARALLEL
+
+[watchdog] chunk exceeded 1s; killed with SIGKILL (OMP_TEST_CHUNK_TIMEOUT to change)
+✗ packages/coding-agent (native/tooling/browser/unit bucket; 1120 files; parallel=1 chunk 73/112; 10 files) [1.1s]
+
+✗ packages/coding-agent (native/tooling/browser/unit bucket; 1120 files; parallel=1 chunk 73/112; 10 files) (exit 137)
+$ bun test --only-failures test/strip-images-from-message.test.ts test/stt-endpointer.test.ts test/stt-online-worker.test.ts test/stt-preflight.test.ts test/stt-sherpa-runtime.test.ts test/subagent-advisor.test.ts test/subagent-hud-render.test.ts test/system-prompt-context-dedup.test.ts test/system-prompt-inventory.test.ts test/system-prompt-model.test.ts --parallel=1 --timeout=120000
+
+bun test v1.4.4 (38afee6c8) 1x PARALLEL
+
+[watchdog] chunk exceeded 1s; killed with SIGKILL (OMP_TEST_CHUNK_TIMEOUT to change)
+✗ packages/coding-agent (native/tooling/browser/unit bucket; 1120 files; parallel=1 chunk 65/112; 10 files) [1.1s]
+
+✗ packages/coding-agent (native/tooling/browser/unit bucket; 1120 files; parallel=1 chunk 65/112; 10 files) (exit 137)
+$ bun test --only-failures test/session-manager-close-drain-latch.test.ts test/session-manager-rename-title.test.ts test/session-manager/artifact-release.test.ts test/session-manager/build-context.test.ts test/session-manager/close-drop-empty.test.ts test/session-manager/large-session-memory.test.ts test/session-manager/save-entry.test.ts test/session-manager/signature-persistence.test.ts test/session-persistence-images.test.ts test/session-ranking.test.ts --parallel=1 --timeout=120000
+
+bun test v1.4.4 (38afee6c8) 1x PARALLEL
+
+[watchdog] chunk exceeded 1s; killed with SIGKILL (OMP_TEST_CHUNK_TIMEOUT to change)
+✗ packages/coding-agent (native/tooling/browser/unit bucket; 1120 files; parallel=1 chunk 69/112; 10 files) [1.1s]
+
+✗ packages/coding-agent (native/tooling/browser/unit bucket; 1120 files; parallel=1 chunk 69/112; 10 files) (exit 137)
+$ bun test --only-failures test/skill-url-plugin-upgrade.test.ts test/skills.test.ts test/skillshare/discovery.test.ts test/skillshare/pack.test.ts test/skillshare/tar.test.ts test/slash-commands/computer.test.ts test/slash-commands/handoff.test.ts test/slash-commands/history-security.test.ts test/slash-commands/memory.test.ts test/slash-commands/move-completion.test.ts --parallel=1 --timeout=120000
+
+bun test v1.4.4 (38afee6c8) 1x PARALLEL
+
+[watchdog] chunk exceeded 1s; killed with SIGKILL (OMP_TEST_CHUNK_TIMEOUT to change)
+✗ packages/coding-agent (native/tooling/browser/unit bucket; 1120 files; parallel=1 chunk 77/112; 10 files) [1.1s]
+
+✗ packages/coding-agent (native/tooling/browser/unit bucket; 1120 files; parallel=1 chunk 77/112; 10 files) (exit 137)
+$ bun test --only-failures test/thread/lsp-mode.test.ts test/thread/mcp-scoped-tools.test.ts test/thread/memory-bridge.test.ts test/thread/reviver-ledger.test.ts test/thread/rpc.test.ts test/thread/runtime-service.test.ts test/thread/settings-mirror.test.ts test/thread/subagent-spawn-signal.test.ts test/thread/subagent-worker.test.ts test/thread/telemetry-bridge.test.ts --parallel=1 --timeout=120000
+
+bun test v1.4.4 (38afee6c8) 1x PARALLEL
+
+[watchdog] chunk exceeded 1s; killed with SIGKILL (OMP_TEST_CHUNK_TIMEOUT to change)
+✗ packages/coding-agent (native/tooling/browser/unit bucket; 1120 files; parallel=1 chunk 81/112; 10 files) [1.0s]
+
+✗ packages/coding-agent (native/tooling/browser/unit bucket; 1120 files; parallel=1 chunk 81/112; 10 files) (exit 137)
+$ bun test --only-failures test/tools/browser-attach.test.ts test/tools/browser-background-input.test.ts test/tools/browser-cmux-element-click.test.ts test/tools/browser-cmux-eval-envelope.test.ts test/tools/browser-cmux-guest-rejection.test.ts test/tools/browser-cmux-kind.test.ts test/tools/browser-cmux-observation.test.ts test/tools/browser-cmux-page-text.test.ts test/tools/browser-cmux-release-mid-run.test.ts test/tools/browser-cmux-socket.test.ts --parallel=1 --timeout=120000
+
+bun test v1.4.4 (38afee6c8) 1x PARALLEL
+
+[watchdog] chunk exceeded 1s; killed with SIGKILL (OMP_TEST_CHUNK_TIMEOUT to change)
+✗ packages/coding-agent (native/tooling/browser/unit bucket; 1120 files; parallel=1 chunk 89/112; 10 files) [1.0s]
+
+✗ packages/coding-agent (native/tooling/browser/unit bucket; 1120 files; parallel=1 chunk 89/112; 10 files) (exit 137)
+$ bun test --only-failures test/tools/browser-webmcp.test.ts test/tools/browser-worker-exit.test.ts test/tools/builtin-defaults.test.ts test/tools/computer-call.test.ts test/tools/computer.test.ts test/tools/edit-handler-url-targets.test.ts test/tools/edit-renderer.test.ts test/tools/eval-auto-background.test.ts test/tools/eval-availability-contract.test.ts test/tools/eval-clone-error.test.ts --parallel=1 --timeout=120000
+
+bun test v1.4.4 (38afee6c8) 1x PARALLEL
+
+[watchdog] chunk exceeded 1s; killed with SIGKILL (OMP_TEST_CHUNK_TIMEOUT to change)
+✗ packages/coding-agent (native/tooling/browser/unit bucket; 1120 files; parallel=1 chunk 85/112; 10 files) [1.1s]
+
+✗ packages/coding-agent (native/tooling/browser/unit bucket; 1120 files; parallel=1 chunk 85/112; 10 files) (exit 137)
+$ bun test --only-failures test/tools/browser-relay-foreign-frames.test.ts test/tools/browser-relay-kind.test.ts test/tools/browser-relay-probe.test.ts test/tools/browser-relay-self-update.test.ts test/tools/browser-relay-server.test.ts test/tools/browser-relay-tab-isolation.test.ts test/tools/browser-release-build-timeouts.test.ts test/tools/browser-role-ax.test.ts test/tools/browser-run-cancellation.test.ts test/tools/browser-run-listeners.test.ts --parallel=1 --timeout=120000
+
+bun test v1.4.4 (38afee6c8) 1x PARALLEL
+
+[watchdog] chunk exceeded 1s; killed with SIGKILL (OMP_TEST_CHUNK_TIMEOUT to change)
+✗ packages/coding-agent (native/tooling/browser/unit bucket; 1120 files; parallel=1 chunk 93/112; 10 files) [1.1s]
+
+✗ packages/coding-agent (native/tooling/browser/unit bucket; 1120 files; parallel=1 chunk 93/112; 10 files) (exit 137)
+$ bun test --only-failures test/tools/glob.test.ts test/tools/grep-exclude.test.ts test/tools/grep-internal-urls.test.ts test/tools/grep-pagination.test.ts test/tools/grep-url-selectors.test.ts test/tools/ida-binary.test.ts test/tools/ida-worker.test.ts test/tools/image-gen.test.ts test/tools/irc-roster-activity.test.ts test/tools/irc.test.ts --parallel=1 --timeout=120000
+
+bun test v1.4.4 (38afee6c8) 1x PARALLEL
+
+[watchdog] chunk exceeded 1s; killed with SIGKILL (OMP_TEST_CHUNK_TIMEOUT to change)
+✗ packages/coding-agent (native/tooling/browser/unit bucket; 1120 files; parallel=1 chunk 101/112; 10 files) [1.1s]
+
+✗ packages/coding-agent (native/tooling/browser/unit bucket; 1120 files; parallel=1 chunk 101/112; 10 files) (exit 137)
+$ bun test --only-failures test/tools/web-scrapers/finance-media.test.ts test/tools/web-scrapers/git-hosting.test.ts test/tools/web-scrapers/gitlab-mr-description.test.ts test/tools/web-scrapers/media.test.ts test/tools/web-scrapers/ollama.test.ts test/tools/web-scrapers/package-managers-2.test.ts test/tools/web-scrapers/package-managers.test.ts test/tools/web-scrapers/package-registries.test.ts test/tools/web-scrapers/readthedocs.test.ts test/tools/web-scrapers/reddit.test.ts --parallel=1 --timeout=120000
+
+bun test v1.4.4 (38afee6c8) 1x PARALLEL
+
+[watchdog] chunk exceeded 1s; killed with SIGKILL (OMP_TEST_CHUNK_TIMEOUT to change)
+✗ packages/coding-agent (native/tooling/browser/unit bucket; 1120 files; parallel=1 chunk 109/112; 10 files) [1.0s]
+
+✗ packages/coding-agent (native/tooling/browser/unit bucket; 1120 files; parallel=1 chunk 109/112; 10 files) (exit 137)
+$ bun test --only-failures test/vibe/prompt-cache.test.ts test/vibe/token-rate.test.ts test/wait-reply-ask.test.ts test/web-scrapers/docs-rs-gunzip-cap.test.ts test/web-scrapers/github-ghost-user.test.ts test/web-scrapers/mastodon-probe.test.ts test/web/search/abort-and-timeout.test.ts test/web/search/anthropic.test.ts test/web/search/cli-provider-settings.test.ts test/web/search/codex-broker.test.ts --parallel=1 --timeout=120000
+
+bun test v1.4.4 (38afee6c8) 1x PARALLEL
+
+[watchdog] chunk exceeded 1s; killed with SIGKILL (OMP_TEST_CHUNK_TIMEOUT to change)
+✗ packages/coding-agent (native/tooling/browser/unit bucket; 1120 files; parallel=1 chunk 97/112; 10 files) [1.1s]
+
+✗ packages/coding-agent (native/tooling/browser/unit bucket; 1120 files; parallel=1 chunk 97/112; 10 files) (exit 137)
+$ bun test --only-failures test/tools/read-in-memory-range.test.ts test/tools/read-local-image.test.ts test/tools/read-media-path.test.ts test/tools/read-mixed-path-list.test.ts test/tools/read-pdf-line-range.test.ts test/tools/read-pdf-rendering.test.ts test/tools/read-pdf-screenshot-chromium.test.ts test/tools/read-raw-range.test.ts test/tools/read-renderer.test.ts test/tools/read-repeat-hint.test.ts --parallel=1 --timeout=120000
+
+bun test v1.4.4 (38afee6c8) 1x PARALLEL
+
+[watchdog] chunk exceeded 1s; killed with SIGKILL (OMP_TEST_CHUNK_TIMEOUT to change)
+✗ packages/coding-agent (native/tooling/browser/unit bucket; 1120 files; parallel=1 chunk 105/112; 10 files) [1.1s]
+
+✗ packages/coding-agent (native/tooling/browser/unit bucket; 1120 files; parallel=1 chunk 105/112; 10 files) (exit 137)
+$ bun test --only-failures test/tools/yield.test.ts test/transcript-presenter.test.ts test/truncated-string-retention.test.ts test/tts/speakable.test.ts test/tts/tts-speed.test.ts test/ttsr-coordinator-buffer.test.ts test/ttsr-eval-bridge.test.ts test/ttsr-eval-near-miss.test.ts test/ttsr-incremental-match.test.ts test/ttsr-inline-flags-scope.test.ts --parallel=1 --timeout=120000
+
+bun test v1.4.4 (38afee6c8) 1x PARALLEL
+
+[watchdog] chunk exceeded 1s; killed with SIGKILL (OMP_TEST_CHUNK_TIMEOUT to change)
+
+ 0 chunks passed
+ 28 failed
+Ran 28 test command(s) in 7.5s.
+error: script "ci:test:coding-agent:native" exited with code 1

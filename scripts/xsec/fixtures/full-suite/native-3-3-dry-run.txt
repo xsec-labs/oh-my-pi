@@ -1,0 +1,112 @@
+$ bun scripts/ci-test-ts.ts coding-agent-native --dry-run
+
+==> packages/coding-agent (native/tooling/browser/unit bucket; 1120 files; parallel=1 chunk 3/112; 10 files)
+$ bun test --only-failures test/agent-session-active-tool-updates.test.ts test/agent-session-anthropic-native-compaction.test.ts test/agent-session-async-delivery.test.ts test/agent-session-auto-compaction-queue.test.ts test/agent-session-bash-detach.test.ts test/agent-session-bash-session-ownership.test.ts test/agent-session-compact-running-tool.test.ts test/agent-session-computer-turn.test.ts test/agent-session-dispose-concurrent.test.ts test/agent-session-dispose-forwards-tool-end.test.ts --parallel=1 --timeout=120000
+
+==> packages/coding-agent (native/tooling/browser/unit bucket; 1120 files; parallel=1 chunk 6/112; 10 files)
+$ bun test --only-failures test/agent-session-snapcompact-auto-fallback.test.ts test/agent-session-snapcompact-reader.test.ts test/agent-session-streaming-edit-recovery.test.ts test/agent-session-title-generation-dispose.test.ts test/agent-session-todo-mid-run-nudge.test.ts test/agent-session-tool-call-loop-guard.test.ts test/agent-session-tool-rebuild-skip.test.ts test/agent-session-tree-ask-reanswer.test.ts test/agent-storage-model-perf.test.ts test/agent-storage-sqlite-compat.test.ts --parallel=1 --timeout=120000
+
+==> packages/coding-agent (native/tooling/browser/unit bucket; 1120 files; parallel=1 chunk 9/112; 10 files)
+$ bun test --only-failures test/autoresearch-git.test.ts test/autoresearch-state.test.ts test/autoresearch-tools.test.ts test/available-commands.test.ts test/bash-acp-terminal.test.ts test/bash-autobg-timer.test.ts test/bash-executor.test.ts test/bash-failure-result.test.ts test/bash-job-lifecycle.test.ts test/bash-session-state.test.ts --parallel=1 --timeout=120000
+
+==> packages/coding-agent (native/tooling/browser/unit bucket; 1120 files; parallel=1 chunk 12/112; 10 files)
+$ bun test --only-failures test/capability/rule-buckets.test.ts test/claude-auto-reset.test.ts test/cleanse-parsers.test.ts test/cleanse.test.ts test/cli-advisor-flag.test.ts test/cli-argv-routing.test.ts test/cli-completions-exit.test.ts test/cli-computer-lazy.test.ts test/cli-cwd-flag.test.ts test/cli-explicit-extension-isolation.test.ts --parallel=1 --timeout=120000
+
+==> packages/coding-agent (native/tooling/browser/unit bucket; 1120 files; parallel=1 chunk 15/112; 10 files)
+$ bun test --only-failures test/cli/completions.test.ts test/cli/file-processor.test.ts test/cli/native-shell.test.ts test/cli/npm-registry.test.ts test/cli/skill-list.test.ts test/cli/update-cli.test.ts test/cli/update-rename-migration.integration.test.ts test/cli/worktree-add-hook.test.ts test/cli/worktree-clear-isolation.test.ts test/client-prompts.test.ts --parallel=1 --timeout=120000
+
+==> packages/coding-agent (native/tooling/browser/unit bucket; 1120 files; parallel=1 chunk 18/112; 10 files)
+$ bun test --only-failures test/commit-execute.test.ts test/commit-fallback-exit.test.ts test/commit-split-hunk-validation.test.ts test/commit-split-lock-file-pairing.test.ts test/compact-modes.test.ts test/compaction-hook-replay-boundary.test.ts test/compaction-prefer-current-model.test.ts test/compaction-speculation.test.ts test/compaction.test.ts test/composer-prediction-controller.test.ts --parallel=1 --timeout=120000
+
+==> packages/coding-agent (native/tooling/browser/unit bucket; 1120 files; parallel=1 chunk 21/112; 10 files)
+$ bun test --only-failures test/core/python-kernel-env.test.ts test/core/python-kernel-session.test.ts test/core/python-runner.integration.test.ts test/core/python-tool-bridge.test.ts test/cost-gate-skill-description.test.ts test/cost-gate.test.ts test/credential-pin.test.ts test/cursor-exec.test.ts test/dap-config-precedence.test.ts test/debug/dap-config.test.ts --parallel=1 --timeout=120000
+
+==> packages/coding-agent (native/tooling/browser/unit bucket; 1120 files; parallel=1 chunk 24/112; 10 files)
+$ bun test --only-failures test/edit-auto-repair-cost-gate.test.ts test/edit-auto-repair-region.test.ts test/edit-blackbox.test.ts test/edit-input-paths.test.ts test/edit-internal-url-targets.test.ts test/edit-mode.test.ts test/edit-patch-unchanged-error.test.ts test/edit-prompt-variant.test.ts test/edit-tool-details.test.ts test/editor-max-height.test.ts --parallel=1 --timeout=120000
+
+==> packages/coding-agent (native/tooling/browser/unit bucket; 1120 files; parallel=1 chunk 27/112; 10 files)
+$ bun test --only-failures test/eval/process-stdio-capture.test.ts test/eval/py/prelude.test.ts test/eval/py/runner-request-dispatch.test.ts test/eval/py/runner-shell-output.test.ts test/eval/py/runner-source-transform.test.ts test/eval/python-eval-state.test.ts test/eval/reserved-global-reassignment.test.ts test/eval/runtime-global-dispose.test.ts test/eval/shadow-claim-store.test.ts test/eval/speculation-evaluator.test.ts --parallel=1 --timeout=120000
+
+==> packages/coding-agent (native/tooling/browser/unit bucket; 1120 files; parallel=1 chunk 30/112; 10 files)
+$ bun test --only-failures test/extensibility/legacy-pi-package-layout.test.ts test/extensibility/legacy-pi-require-cache.test.ts test/extensibility/tool-proxy.test.ts test/extension-flag-initial-message.test.ts test/extension-loader-graph-read-dedup.test.ts test/extension-loader-process-exit.test.ts test/extension-registered-tool-source-info.test.ts test/extension-session-modes.test.ts test/extensions-discovery.test.ts test/extensions-runner.test.ts --parallel=1 --timeout=120000
+
+==> packages/coding-agent (native/tooling/browser/unit bucket; 1120 files; parallel=1 chunk 33/112; 10 files)
+$ bun test --only-failures test/hindsight-client.test.ts test/hindsight-content.test.ts test/hindsight-conversation-timestamps.test.ts test/hindsight-mental-models.test.ts test/hindsight-mm-cache-stability.test.ts test/hindsight-outbox.test.ts test/hindsight-recall-failure.test.ts test/hindsight-retention-cache.test.ts test/hindsight/client.test.ts test/hindsight/transcript.test.ts --parallel=1 --timeout=120000
+
+==> packages/coding-agent (native/tooling/browser/unit bucket; 1120 files; parallel=1 chunk 36/112; 10 files)
+$ bun test --only-failures test/input-controller-large-paste.test.ts test/input-controller-smart-paste.test.ts test/install-command.test.ts test/installed-source-resolution.test.ts test/interactive-click-focus.test.ts test/interactive-mode-activity-line.test.ts test/interactive-mode-deferred-command-notice.test.ts test/interactive-mode-editor-component.test.ts test/interactive-mode-hud-job-widgets.test.ts test/interactive-mode-mcp-connecting.test.ts --parallel=1 --timeout=120000
+
+==> packages/coding-agent (native/tooling/browser/unit bucket; 1120 files; parallel=1 chunk 39/112; 10 files)
+$ bun test --only-failures test/issue-2375-repro.test.ts test/issue-2750-subagent-runtime-fallback.test.ts test/issue-3031-repro.test.ts test/issue-4197-plugin-resolution-cache.test.ts test/issue-4324-repro.test.ts test/issue-4806-command-output.test.ts test/issue-5764-registertool-loadmode.test.ts test/issue-6334-code-fence-border-contrast.test.ts test/issue-6449-legacy-pi-cjs-double-instance.test.ts test/issue-6767-usage-command-streaming.test.ts --parallel=1 --timeout=120000
+
+==> packages/coding-agent (native/tooling/browser/unit bucket; 1120 files; parallel=1 chunk 42/112; 10 files)
+$ bun test --only-failures test/job-widgets/pipe-source.test.ts test/job-widgets/registry.test.ts test/join-command.test.ts test/join-patch.test.ts test/json-parse-plugin.test.ts test/judgment-chain.test.ts test/launch/broker-endpoint-loss.test.ts test/launch/broker-restarting-settle.test.ts test/launch/daemon-prune.test.ts test/launch/protocol.test.ts --parallel=1 --timeout=120000
+
+==> packages/coding-agent (native/tooling/browser/unit bucket; 1120 files; parallel=1 chunk 45/112; 10 files)
+$ bun test --only-failures test/lsp/mux-server-key.test.ts test/lsp/reconcile-open-files.test.ts test/lsp/reload-configuration-params.test.ts test/lsp/shared-client-log-context.test.ts test/main-auto-resume-model-restore.test.ts test/main-model-scope-notification.test.ts test/main-no-session-resume-picker.test.ts test/main-session-resolution-error.test.ts test/marketplace/fetcher.test.ts test/marketplace/project-scope.test.ts --parallel=1 --timeout=120000
+
+==> packages/coding-agent (native/tooling/browser/unit bucket; 1120 files; parallel=1 chunk 48/112; 10 files)
+$ bun test --only-failures test/mcp-startup-events.test.ts test/mcp-stdio-cancellation.test.ts test/mcp-stdio-transport.test.ts test/mcp-tool-args.test.ts test/mcp-tool-name-canonicalization.test.ts test/mcp-tool-ordering.test.ts test/mcp/config-request-id-format.test.ts test/mcp/config-writer.test.ts test/mcp/oauth-reauth-abort-race.test.ts test/mcp/request-id.test.ts --parallel=1 --timeout=120000
+
+==> packages/coding-agent (native/tooling/browser/unit bucket; 1120 files; parallel=1 chunk 51/112; 10 files)
+$ bun test --only-failures test/model-registry-cache-headers.test.ts test/model-registry-default-config.test.ts test/model-registry-lazy-loading.test.ts test/model-registry-litellm-usage.test.ts test/model-registry-runtime-provider.test.ts test/model-registry.test.ts test/model-resolver.test.ts test/models-cli-image-support.test.ts test/models-config-lazy-validator.test.ts test/modes/components/assistant-message-mermaid.test.ts --parallel=1 --timeout=120000
+
+==> packages/coding-agent (native/tooling/browser/unit bucket; 1120 files; parallel=1 chunk 54/112; 10 files)
+$ bun test --only-failures test/move-directory-autocomplete.test.ts test/nerd-font-glyphs.test.ts test/non-interactive-env.test.ts test/oauth-flow.test.ts test/online-tiny-candidates.test.ts test/otel-env-window.test.ts test/output-sink-fd-lifecycle.test.ts test/parent-watchdog.test.ts test/pdf-converter.test.ts test/plan-mode/approved-plan.test.ts --parallel=1 --timeout=120000
+
+==> packages/coding-agent (native/tooling/browser/unit bucket; 1120 files; parallel=1 chunk 57/112; 10 files)
+$ bun test --only-failures test/read-cli-image-question.test.ts test/read-cli-mcp-resource.test.ts test/read-cli-mcp-slow-connect.test.ts test/read-cli-skill.test.ts test/read-column-truncation-snapshot.test.ts test/read-display-budget.test.ts test/read-edit-out-of-cwd.test.ts test/read-edit-seen-lines.test.ts test/read-leading-context-budget.test.ts test/read-multi-range.test.ts --parallel=1 --timeout=120000
+
+==> packages/coding-agent (native/tooling/browser/unit bucket; 1120 files; parallel=1 chunk 60/112; 10 files)
+$ bun test --only-failures test/rpc-event-filter.test.ts test/rpc-extension-ui.test.ts test/rpc-host-tools.test.ts test/rpc-input-hooks.test.ts test/rpc-live.test.ts test/rpc-mcp-discovery.test.ts test/rpc-output.test.ts test/rpc-queued-message.test.ts test/rpc-skill-image-order.test.ts test/rpc-stdin-lock.test.ts --parallel=1 --timeout=120000
+
+==> packages/coding-agent (native/tooling/browser/unit bucket; 1120 files; parallel=1 chunk 63/112; 10 files)
+$ bun test --only-failures test/sdk-tiny-client-dispose.test.ts test/sdk-tool-activation.test.ts test/sdk-wire-stripped-images.test.ts test/sdk-workpool-yield-schema.test.ts test/secrets-fast-paths.test.ts test/secrets-obfuscator.test.ts test/secrets-prefilter.test.ts test/security/comparison.test.ts test/security/contracts.test.ts test/security/coordinator.test.ts --parallel=1 --timeout=120000
+
+==> packages/coding-agent (native/tooling/browser/unit bucket; 1120 files; parallel=1 chunk 66/112; 10 files)
+$ bun test --only-failures test/session-read-only-hydration.test.ts test/session-selector-search.test.ts test/session-storage-fd-inheritance.test.ts test/session-storage.test.ts test/session/interrupted-thinking-demote.test.ts test/session/irc-bridge-relay.test.ts test/session/provider-image-budget.test.ts test/session/publish-lock-os-gate.test.ts test/session/redis-session-storage-manager.test.ts test/session/redis-session-storage.test.ts --parallel=1 --timeout=120000
+
+==> packages/coding-agent (native/tooling/browser/unit bucket; 1120 files; parallel=1 chunk 69/112; 10 files)
+$ bun test --only-failures test/skill-url-plugin-upgrade.test.ts test/skills.test.ts test/skillshare/discovery.test.ts test/skillshare/pack.test.ts test/skillshare/tar.test.ts test/slash-commands/computer.test.ts test/slash-commands/handoff.test.ts test/slash-commands/history-security.test.ts test/slash-commands/memory.test.ts test/slash-commands/move-completion.test.ts --parallel=1 --timeout=120000
+
+==> packages/coding-agent (native/tooling/browser/unit bucket; 1120 files; parallel=1 chunk 72/112; 10 files)
+$ bun test --only-failures test/status-line-settings-cache.test.ts test/status-line-vcs-refresh.test.ts test/storage-errors.test.ts test/storage-exit-lifecycle.test.ts test/stream/paint-encoder.test.ts test/stream/publisher.test.ts test/stream/streamer.test.ts test/streaming-edit-abort.test.ts test/streaming-edit-recovery.test.ts test/streaming-preview-height.test.ts --parallel=1 --timeout=120000
+
+==> packages/coding-agent (native/tooling/browser/unit bucket; 1120 files; parallel=1 chunk 75/112; 10 files)
+$ bun test --only-failures test/task/ovnfs.test.ts test/task/parked-subagent-shell-release.test.ts test/task/prompt-cache.test.ts test/task/spawn-run.test.ts test/task/structured-subagent.test.ts test/task/tan-memory-recall.test.ts test/task/worktree.test.ts test/telemetry-export.test.ts test/terminal-launch-tmux.test.ts test/terminal-launch.test.ts --parallel=1 --timeout=120000
+
+==> packages/coding-agent (native/tooling/browser/unit bucket; 1120 files; parallel=1 chunk 78/112; 10 files)
+$ bun test --only-failures test/thread/worker-subscriptions.test.ts test/tiny-device.test.ts test/tiny-dtype.test.ts test/tiny-model-settings-live.test.ts test/tiny-models-cli.test.ts test/tiny-runtime-install.test.ts test/tiny-text.test.ts test/tiny-worker-env.test.ts test/title-card.test.ts test/title-drift-classifier.test.ts --parallel=1 --timeout=120000
+
+==> packages/coding-agent (native/tooling/browser/unit bucket; 1120 files; parallel=1 chunk 81/112; 10 files)
+$ bun test --only-failures test/tools/browser-attach.test.ts test/tools/browser-background-input.test.ts test/tools/browser-cmux-element-click.test.ts test/tools/browser-cmux-eval-envelope.test.ts test/tools/browser-cmux-guest-rejection.test.ts test/tools/browser-cmux-kind.test.ts test/tools/browser-cmux-observation.test.ts test/tools/browser-cmux-page-text.test.ts test/tools/browser-cmux-release-mid-run.test.ts test/tools/browser-cmux-socket.test.ts --parallel=1 --timeout=120000
+
+==> packages/coding-agent (native/tooling/browser/unit bucket; 1120 files; parallel=1 chunk 84/112; 10 files)
+$ bun test --only-failures test/tools/browser-queries.test.ts test/tools/browser-react-vitals.test.ts test/tools/browser-read-after-navigation.test.ts test/tools/browser-readable.test.ts test/tools/browser-recording.test.ts test/tools/browser-relay-bridge.test.ts test/tools/browser-relay-daemon.test.ts test/tools/browser-relay-debugger-ownership.test.ts test/tools/browser-relay-detach.test.ts test/tools/browser-relay-download-pairing.test.ts --parallel=1 --timeout=120000
+
+==> packages/coding-agent (native/tooling/browser/unit bucket; 1120 files; parallel=1 chunk 87/112; 10 files)
+$ bun test --only-failures test/tools/browser-storage-state.test.ts test/tools/browser-tab-call.test.ts test/tools/browser-tab-press-guard.test.ts test/tools/browser-tab-timeouts.test.ts test/tools/browser-tab-worker-startup.test.ts test/tools/browser-targets.test.ts test/tools/browser-tern-adopt.test.ts test/tools/browser-tern-dom.test.ts test/tools/browser-tern-kind.test.ts test/tools/browser-tern-tab.test.ts --parallel=1 --timeout=120000
+
+==> packages/coding-agent (native/tooling/browser/unit bucket; 1120 files; parallel=1 chunk 90/112; 10 files)
+$ bun test --only-failures test/tools/eval-commit-stability.test.ts test/tools/eval-description-spawn-default.test.ts test/tools/eval-description.test.ts test/tools/eval-display-format.test.ts test/tools/eval-display-text.test.ts test/tools/eval-fallback.test.ts test/tools/eval-streaming-output.test.ts test/tools/eval-timeout-contract.test.ts test/tools/eval-timeout.test.ts test/tools/fetch-alternates.test.ts --parallel=1 --timeout=120000
+
+==> packages/coding-agent (native/tooling/browser/unit bucket; 1120 files; parallel=1 chunk 93/112; 10 files)
+$ bun test --only-failures test/tools/glob.test.ts test/tools/grep-exclude.test.ts test/tools/grep-internal-urls.test.ts test/tools/grep-pagination.test.ts test/tools/grep-url-selectors.test.ts test/tools/ida-binary.test.ts test/tools/ida-worker.test.ts test/tools/image-gen.test.ts test/tools/irc-roster-activity.test.ts test/tools/irc.test.ts --parallel=1 --timeout=120000
+
+==> packages/coding-agent (native/tooling/browser/unit bucket; 1120 files; parallel=1 chunk 96/112; 10 files)
+$ bun test --only-failures test/tools/read-after-bash.test.ts test/tools/read-archive-pdf.test.ts test/tools/read-archive-tar-range.test.ts test/tools/read-artifact-approval.test.ts test/tools/read-artifact-in-memory.test.ts test/tools/read-artifact-large.test.ts test/tools/read-directory-range.test.ts test/tools/read-fs-not-abortable.test.ts test/tools/read-head-tail-list.test.ts test/tools/read-image-question.test.ts --parallel=1 --timeout=120000
+
+==> packages/coding-agent (native/tooling/browser/unit bucket; 1120 files; parallel=1 chunk 99/112; 10 files)
+$ bun test --only-failures test/tools/search-approval-targets.test.ts test/tools/search-url-paths.test.ts test/tools/shell-tokenize.test.ts test/tools/split-internal-url-sel.test.ts test/tools/sqlite-rowid-shadow.test.ts test/tools/sqlite.test.ts test/tools/ssh-directory-scope.test.ts test/tools/ssh-url-approval-gate.test.ts test/tools/ssh-url-approval.test.ts test/tools/ssh-url-localhost-e2e.test.ts --parallel=1 --timeout=120000
+
+==> packages/coding-agent (native/tooling/browser/unit bucket; 1120 files; parallel=1 chunk 102/112; 10 files)
+$ bun test --only-failures test/tools/web-scrapers/research.test.ts test/tools/web-scrapers/sec-edgar.test.ts test/tools/web-scrapers/security.test.ts test/tools/web-scrapers/social-extended.test.ts test/tools/web-scrapers/social.test.ts test/tools/web-scrapers/stackexchange.test.ts test/tools/web-scrapers/standards.test.ts test/tools/web-scrapers/wikipedia.test.ts test/tools/web-scrapers/youtube-parallel.test.ts test/tools/web-scrapers/youtube.test.ts --parallel=1 --timeout=120000
+
+==> packages/coding-agent (native/tooling/browser/unit bucket; 1120 files; parallel=1 chunk 105/112; 10 files)
+$ bun test --only-failures test/tools/yield.test.ts test/transcript-presenter.test.ts test/truncated-string-retention.test.ts test/tts/speakable.test.ts test/tts/tts-speed.test.ts test/ttsr-coordinator-buffer.test.ts test/ttsr-eval-bridge.test.ts test/ttsr-eval-near-miss.test.ts test/ttsr-incremental-match.test.ts test/ttsr-inline-flags-scope.test.ts --parallel=1 --timeout=120000
+
+==> packages/coding-agent (native/tooling/browser/unit bucket; 1120 files; parallel=1 chunk 108/112; 10 files)
+$ bun test --only-failures test/utils/grammars.test.ts test/utils/image-question.test.ts test/utils/image-vision-fallback.test.ts test/utils/jj.test.ts test/utils/resume-command.test.ts test/utils/terminal-graphics.test.ts test/utils/token-rate-meter.test.ts test/utils/turndown.test.ts test/utils/vcs-adapter.test.ts test/utils/video.test.ts --parallel=1 --timeout=120000
+
+==> packages/coding-agent (native/tooling/browser/unit bucket; 1120 files; parallel=1 chunk 111/112; 10 files)
+$ bun test --only-failures test/web/search/read-limited-text.test.ts test/web/search/tavily.test.ts test/web/search/xai.test.ts test/web/search/zai.test.ts test/web/x-reader.test.ts test/welcome-history-resize.test.ts test/worker-selector.test.ts test/workspace-diagnostics.test.ts test/workspace-tree.test.ts test/write-acp-fs.test.ts --parallel=1 --timeout=120000

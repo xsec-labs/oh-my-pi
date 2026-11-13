@@ -3,11 +3,16 @@
  * configures. It answers from a script and records every request it receives. A reply can be held
  * open until the client disconnects, so a test can cancel a turn that is still running.
  */
+import { isRecord } from "@oh-my-pi/pi-utils";
 
-/** One scripted answer: `content` is streamed as text deltas, or `hold` keeps the response open instead. */
+/**
+ * One scripted answer: `content` is streamed as text deltas, or `hold` keeps the response open instead.
+ * `toolCall` streams a tool call in place of the text, so the client runs that tool with `arguments`.
+ */
 export interface ScriptedReply {
 	content: string[];
 	hold?: boolean;
+	toolCall?: { name: string; arguments: string };
 }
 
 export interface FakeModelServer {
@@ -15,15 +20,19 @@ export interface FakeModelServer {
 	readonly baseUrl: string;
 	/** The body of every chat completions request received so far, in order. */
 	readonly requests: unknown[];
-	/** Queues the answer to the next request. A request with nothing queued is answered with `ok`. */
+	/** Queues the answer to the next request that no route claims. A request with nothing queued is answered with `ok`. */
 	enqueue(reply: ScriptedReply): void;
+	/** Answers every request whose user messages contain `userText` with `reply`, without taking from the queue. */
+	route(userText: string, reply: ScriptedReply): void;
 	/** Resolves once at least `count` requests have been received. */
 	waitForRequests(count: number): Promise<void>;
+	/** Resolves once at least `count` requests whose user messages contain `userText` have been received. */
+	waitForUserText(userText: string, count: number): Promise<void>;
 	stop(): void;
 }
 
 interface Waiter {
-	count: number;
+	satisfied: () => boolean;
 	resolve: () => void;
 }
 
@@ -32,7 +41,15 @@ const FALLBACK_REPLY: ScriptedReply = { content: ["ok"] };
 export function startFakeModelServer(): FakeModelServer {
 	const requests: unknown[] = [];
 	const queue: ScriptedReply[] = [];
+	const routes: { userText: string; reply: ScriptedReply }[] = [];
 	let waiters: Waiter[] = [];
+
+	function until(satisfied: () => boolean): Promise<void> {
+		if (satisfied()) return Promise.resolve();
+		return new Promise<void>(resolve => {
+			waiters.push({ satisfied, resolve });
+		});
+	}
 
 	const server = Bun.serve({
 		hostname: "127.0.0.1",
@@ -44,10 +61,14 @@ export function startFakeModelServer(): FakeModelServer {
 			}
 			const body: unknown = await request.json();
 			requests.push(body);
-			const ready = waiters.filter(waiter => requests.length >= waiter.count);
-			waiters = waiters.filter(waiter => requests.length < waiter.count);
+			// A route answers without taking from the queue, so the queued replies keep the order they were queued in.
+			const text = userTextOf(body);
+			const route = routes.find(candidate => text.includes(candidate.userText));
+			const reply = route?.reply ?? queue.shift() ?? FALLBACK_REPLY;
+			const ready = waiters.filter(waiter => waiter.satisfied());
+			waiters = waiters.filter(waiter => !ready.includes(waiter));
 			for (const waiter of ready) waiter.resolve();
-			return streamReply(queue.shift() ?? FALLBACK_REPLY);
+			return streamReply(reply);
 		},
 	});
 
@@ -57,16 +78,28 @@ export function startFakeModelServer(): FakeModelServer {
 		enqueue(reply) {
 			queue.push(reply);
 		},
+		route(userText, reply) {
+			routes.push({ userText, reply });
+		},
 		waitForRequests(count) {
-			if (requests.length >= count) return Promise.resolve();
-			return new Promise<void>(resolve => {
-				waiters.push({ count, resolve });
-			});
+			return until(() => requests.length >= count);
+		},
+		waitForUserText(userText, count) {
+			return until(() => requests.filter(body => userTextOf(body).includes(userText)).length >= count);
 		},
 		stop() {
 			server.stop(true);
 		},
 	};
+}
+
+/** The text of every user message in a chat completions request body, as JSON, so a marker is found in any part. */
+function userTextOf(body: unknown): string {
+	if (!isRecord(body) || !Array.isArray(body.messages)) return "";
+	return body.messages
+		.filter((message: unknown) => isRecord(message) && message.role === "user")
+		.map((message: unknown) => JSON.stringify(isRecord(message) ? message.content : ""))
+		.join("\n");
 }
 
 function streamReply(reply: ScriptedReply): Response {
@@ -84,6 +117,15 @@ function streamReply(reply: ScriptedReply): Response {
 			controller.enqueue(event(chunk({ role: "assistant", content: "" }, null)));
 			// A held reply stays open; the client's disconnect is what ends it.
 			if (reply.hold) return;
+			if (reply.toolCall) {
+				const { name, arguments: args } = reply.toolCall;
+				const call = { index: 0, id: "call_contract", type: "function", function: { name, arguments: args } };
+				controller.enqueue(event(chunk({ tool_calls: [call] }, null)));
+				controller.enqueue(event(chunk({}, "tool_calls")));
+				controller.enqueue(encoder.encode("data: [DONE]\n\n"));
+				controller.close();
+				return;
+			}
 			for (const text of reply.content) controller.enqueue(event(chunk({ content: text }, null)));
 			controller.enqueue(event(chunk({}, "stop")));
 			controller.enqueue(encoder.encode("data: [DONE]\n\n"));

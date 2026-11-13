@@ -13,6 +13,8 @@ const SOURCE_CLI = path.resolve(import.meta.dir, "../../../../src/cli.ts");
 
 /** The home, agent directory and workspace of one test, with its own fake model and refusing proxy. */
 export interface ContractHome {
+	/** The temp directory of this home: its agent directory, workspace, XDG directories and logs. */
+	readonly base: string;
 	readonly workspace: string;
 	readonly configPath: string;
 	readonly model: FakeModelServer;
@@ -33,11 +35,19 @@ export function ompCommand(): string[] {
 export interface ContractHomeOptions {
 	/** Whether goal mode is on in the settings overlay. It defaults to on, as it does in omp. */
 	goalEnabled?: boolean;
+	/** `models.discovery` in the settings overlay. Desktop passes `configured`, which is the default here. */
+	discovery?: "all" | "configured";
+	/** `task.workerThreads` in the settings overlay. Left out, the setting keeps its default. */
+	workerThreads?: number;
+	/** `mcp.toolNameCollision` in the settings overlay. Desktop passes `error`, which is the default here. */
+	toolNameCollision?: "keep-first" | "error";
 }
 
 /** Starts a fresh home for one test: its own agent directory, workspace, models file and settings overlay. */
 export async function createContractHome(options: ContractHomeOptions = {}): Promise<ContractHome> {
 	const goalEnabled = options.goalEnabled ?? true;
+	const discovery = options.discovery ?? "configured";
+	const toolNameCollision = options.toolNameCollision ?? "error";
 	const root = TempDir.createSync("@omp-contract-");
 	const base = root.path();
 	const proxy = await startRefusingProxy();
@@ -62,11 +72,12 @@ export async function createContractHome(options: ContractHomeOptions = {}): Pro
 		configPath,
 		[
 			"models:",
-			"  discovery: configured",
+			`  discovery: ${discovery}`,
 			"mcp:",
-			"  toolNameCollision: error",
+			`  toolNameCollision: ${toolNameCollision}`,
 			"goal:",
 			`  enabled: ${goalEnabled}`,
+			...(options.workerThreads === undefined ? [] : ["task:", `  workerThreads: ${options.workerThreads}`]),
 			"",
 		].join("\n"),
 	);
@@ -112,6 +123,7 @@ export async function createContractHome(options: ContractHomeOptions = {}): Pro
 	if (process.env.SystemRoot) env.SystemRoot = process.env.SystemRoot;
 
 	return {
+		base,
 		workspace: dirs.workspace,
 		configPath,
 		model,

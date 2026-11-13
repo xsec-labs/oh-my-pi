@@ -2,6 +2,10 @@
 
 This file records each run of the full-suite gate on `xsec`. The rules for the known-failures list and for re-runs are in [the README](README.md#ci); each run is recorded here with both attempts.
 
+## Not yet exercised
+
+The `test` job's checkout runs with `persist-credentials: false` since PR #11 merged (f688cb2c). That job runs only on sync pull requests and manual dispatches, and as of this note no run has exercised it. If it fails at checkout or fetch, look here first.
+
 ## Run 43379659258 (2026-11-13)
 
 `xsec` at ccfd81c6, native shards at concurrency 4. The run concluded success at 06:51:20Z.

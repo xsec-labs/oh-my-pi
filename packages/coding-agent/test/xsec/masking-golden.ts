@@ -4,6 +4,9 @@
  * history. `masking-golden.json` keeps one digest per case, taken before the masking path changed, so a change
  * that alters any output fails the golden test.
  *
+ * Cases from `PLAIN_CASE_COUNT` on also mix in `FAKE_TOKENS`, placeholder-shaped tokens that no obfuscator generated,
+ * so the scan rejects candidates in them. Their digests were taken at 24b99c63 as well.
+ *
  * Regenerate only in a sync pull request that names the upstream change:
  *   bun packages/coding-agent/test/xsec/masking-golden.ts --write
  */
@@ -13,7 +16,10 @@ import { type SecretEntry, SecretObfuscator } from "@oh-my-pi/pi-coding-agent/se
 
 /** Fixed, so the placeholders do not depend on a per-install key file. Made up. */
 export const GOLDEN_KEY = "golden-masking-key-made-up-for-tests-0001";
-export const GOLDEN_CASE_COUNT = 240;
+/** The cases below this index are the corpus whose digests were committed first. */
+const PLAIN_CASE_COUNT = 240;
+const REJECTED_CASE_COUNT = 60;
+export const GOLDEN_CASE_COUNT = PLAIN_CASE_COUNT + REJECTED_CASE_COUNT;
 const TURNS = 3;
 
 const ALNUM = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
@@ -29,6 +35,8 @@ const FILLER = [
 	"",
 ];
 const SEPARATORS = ["", "", "", " ", "\n", "  "];
+/** Placeholder-shaped and never generated: the scan rejects each one and resumes inside it. */
+const FAKE_TOKENS = ["$$WORD_ABCD$$", "$$ABCD$$", "$$K9_QQQQ$$", "$$WORD_ZZZZ:U$$", "$$QQQQ1234$$", "$$WORD_0000$$"];
 
 interface RegexTemplate {
 	entry: SecretEntry;
@@ -127,13 +135,16 @@ export function buildGoldenCase(index: number): GoldenCase {
 	const templates = [GLUE_TEMPLATE, ...pickDistinct(rand, REGEX_TEMPLATES, between(rand, 1, 4))];
 	for (const template of templates) entries.push(template.entry);
 
+	const rejected = index >= PLAIN_CASE_COUNT;
 	const rawTurns: string[] = [];
 	for (let turn = 0; turn < TURNS; turn++) {
 		let text = "";
 		for (let piece = between(rand, 8, 18); piece > 0; piece--) {
 			const roll = rand();
 			let next: string;
-			if (roll < 0.35) next = pick(rand, plainSecrets);
+			// The extra draw happens only in the rejected cases, so the plain cases keep their sequence.
+			if (rejected && rand() < 0.3) next = pick(rand, FAKE_TOKENS);
+			else if (roll < 0.35) next = pick(rand, plainSecrets);
 			else if (roll < 0.6) next = pick(rand, templates).token(rand);
 			else next = pick(rand, FILLER);
 			text += next + pick(rand, SEPARATORS);

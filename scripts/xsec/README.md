@@ -127,6 +127,16 @@ A registry built without settings follows the process's global settings. With no
 - **Extension dynamic managers.** A provider that an extension registers with `fetchDynamicModels` runs its own function on every discovery pass, session start included. The limit does not filter these managers, and the guard does not see the function's requests. Desktop's extensions register no such provider today.
 - **Cursor.** In `configured` mode, Cursor discovery runs only when `cursor` is listed in `models.yml`. It then calls the configured base URL, or `CURSOR_DEFAULT_BASE_URL`, with the global `fetch`, and with an HTTP/2 client when that fails. Neither goes through the guard.
 
+## Known gaps in masking cost
+
+`SecretObfuscator.obfuscate` (`packages/coding-agent/src/secrets/obfuscator.ts`) grows faster than linearly with the number of matches. `bun scripts/xsec/masking-scaling.ts` measures it on synthetic text, in about ten minutes. A follow-up change batches the per-match copy and caches the search in `emitChunk`. The three items below remain after it. The times were measured at xsec 691b4c2b, one run each on a shared 4-vCPU container.
+
+- **Replace mode.** The per-match copy with `replaceRange` also runs in replace mode, at `obfuscator.ts` lines 905 to 913, 1222 to 1223 and 1488 to 1489. The follow-up leaves them alone. Desktop masks in obfuscate mode, and in replace mode a match reads text that an earlier edit already changed (`replaceEnd`, lines 870 to 880), so batching those edits needs an equality test of its own. The script runs obfuscate mode only, so replace mode has no measurements yet.
+- **Matches over existing placeholders.** Each match is checked against every placeholder range already in the string (`obfuscator.ts` lines 1792 and 1873 to 1941; `placeholder-scan.ts` lines 113 and 241), so the time grows with matches times placeholders. On the measured code, 8,000 matches over 8,000 existing placeholders took 10.6 s. With the one-pass edits of a prototype of the follow-up (not in this repository), which leave these checks alone, the same input took 4.4 s.
+- **One pass per plain secret.** Each plain secret makes its own full pass over the text (`#replaceOutsidePlaceholdersTracked`, `obfuscator.ts` lines 1631 to 1670). On the measured code, 4,000 distinct plain secrets took about 69 s. With the `emitChunk` cache of the same prototype they took about 4.6 s, and the time still grows with the number of secrets times the length of the text.
+
+So the follow-up does not make masking linear: matches over existing placeholders and passes per secret stay quadratic, and replace mode is unchanged.
+
 ## Working locally
 
 ```sh

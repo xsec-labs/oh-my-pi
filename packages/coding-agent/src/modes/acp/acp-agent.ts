@@ -99,7 +99,7 @@ import {
 	TTS_SPEED_OPTIONS,
 } from "../../tts/models";
 import { canonicalizeMessage } from "@oh-my-pi/pi-tui/chat/thinking-display";
-import { handleXsecExtMethod, isXsecExtMethod } from "../../xsec/acp";
+import { handleXsecExtMethod, isXsecExtMethod, resumeIf } from "../../xsec/acp";
 import { createAcpClientBridge } from "./acp-client-bridge";
 import {
 	extractAssistantMessageText,
@@ -1326,7 +1326,8 @@ export class AcpAgent implements Agent {
 				// guard above cannot fire and a client prompt lands on AgentSession's busy
 				// guard. Type that failure for the wire instead of letting transport.ts wrap
 				// it as a generic -32603 internal error.
-				this.#runPromptOrCommand(record, converted.text, converted.images).catch((error: unknown) => {
+				const run = resumeIf(params, record) ?? this.#runPromptOrCommand(record, converted.text, converted.images);
+				run.catch((error: unknown) => {
 					this.#finishPrompt(
 						record,
 						undefined,

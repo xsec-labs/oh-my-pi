@@ -23,7 +23,7 @@ Fork code lives under prefixes upstream does not use, so merging upstream never 
 - `scripts/xsec/` for CI scripts
 - `.github/workflows/xsec-*.yml` for workflows
 
-An upstream file may only gain the lines that call into `src/xsec/`. Each such file is listed in `upstream-allowlist.txt` with a line budget, and `check-upstream-diff.ts` fails a pull request that changes any other upstream file or goes over a budget.
+An upstream file may only gain the lines that call into `src/xsec/`. Each such file is listed in `upstream-allowlist.txt` with a line budget and the upstream test paths that cover it. `check-upstream-diff.ts` fails a pull request that changes any other upstream file, goes over a budget, or lists a test path that matches no `*.test.ts` file.
 
 Do not change these, listed or not; `check-upstream-diff.ts` fails on each of them:
 
@@ -35,11 +35,17 @@ Upstream's development rules in [AGENTS.md](../../AGENTS.md) apply to fork code 
 
 ## CI
 
-`.github/workflows/xsec-ci.yml` runs on pull requests to `xsec`, and on pushes to `xsec`:
+`.github/workflows/xsec-ci.yml` runs on pull requests to `xsec`, and on pushes to `xsec`, in two modes.
+
+Every run:
 
 - **Fork scope**: `check-upstream-diff.ts`, `check-workflows.ts` and the tests of `scripts/xsec`.
 - **Lint, type check & web build**: upstream's `ci:check:full` and `collab:web:build`.
-- **Tests**: the nine entries of upstream's `test_*` pull-request jobs, with upstream's scripts, shards and timeouts. The three native shards run at concurrency 2 instead of upstream's 4; the comment on those entries in `xsec-ci.yml` gives the reason.
+- **Fork and related tests**: every test under `packages/coding-agent/test/xsec/`, upstream's CLI smoke entry (`ci:test:smoke`), and the upstream test files that the test paths in `upstream-allowlist.txt` name (`scripts/xsec/list-test-paths.ts`). Each file runs from its package directory with one process and a 120 s ceiling per test, as upstream runs them.
+
+Sync pull requests (head branch `sync/*`, the name the sync workflow gives its branches) and manual runs also run upstream's full pull-request suite: the nine entries of its `test_*` jobs, with upstream's scripts, shards, concurrency (4, the native shards included) and timeouts.
+
+Known failure in the full suite: upstream's `test/tools/browser-relay-detach.test.ts`, "reports a cancel that lands during the re-adoption as a cancel", fails intermittently in `Test coding-agent native 3/3` on GitHub-hosted runners. It is load-sensitive and fails on unmodified v18.20.0 under CPU load. The test still runs; it is neither skipped nor quarantined. On a sync pull request, a thread checks the job log: when this test is the only failure, the pull request merges after a T-37 review, and any other failure blocks. Every run lacks that job; the everyday mode does not run it.
 
 Not run here: the Rust license check (`cargo-deny`), the bazel and native addon build jobs, the install method smoke tests (`ci:test:install-methods`), and the release jobs. The fork changes no Rust, and the rest need upstream's runners or publishing secrets.
 

@@ -84,6 +84,9 @@ jobs:
       permissions:
          contents: read
       steps:
+         - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+           with:
+              persist-credentials: false
          - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
            with:
               name: omp-binary-${{ matrix.target_id }}
@@ -115,6 +118,16 @@ jobs:
               if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
               & $env:BINARY --smoke-test
               if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+         - uses: ./.github/actions/bun-install
+         - name: Install prebuilt native addon
+           run: bun scripts/xsec/fetch-natives.ts ${{ matrix.target_id }}
+         - name: ACP contract tests against the release binary
+           # The tests start the binary named by XSEC_CONTRACT_OMP, not the source tree, so this step gates
+           # what users install. The path is absolute because the tests run from packages/coding-agent.
+           working-directory: packages/coding-agent
+           env:
+              XSEC_CONTRACT_OMP: ${{ github.workspace }}/binaries/${{ matrix.binary }}
+           run: bun test --parallel=1 test/xsec/contract
 
    release_assets:
       name: Checksum release assets

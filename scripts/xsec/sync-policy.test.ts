@@ -28,7 +28,10 @@ function cleanFacts(): AutoMergeFacts {
 			extraCommits: [],
 			treeIsAutomaticMerge: true,
 			// Upstream's own CHANGELOG.md churn is part of every release and does not block.
-			changedPaths: ["packages/ai/src/index.ts", "CHANGELOG.md"],
+			changedPaths: [
+				{ path: "packages/ai/src/index.ts", status: "M" },
+				{ path: "CHANGELOG.md", status: "M" },
+			],
 		},
 		freshMergeConflicts: false,
 		checkRuns: [
@@ -174,7 +177,9 @@ describe("the auto-merge condition", () => {
 	it("keeps a pull request that changes the known-failures list, which is fork-owned", () => {
 		// The list says which upstream failures count as passing. A sync pull request that could edit it
 		// could list its own failures and merge, so the fork-owned path rule must hold for it.
-		const decision = decideAutoMerge(withHead({ changedPaths: ["scripts/xsec/upstream-known-failures.txt"] }));
+		const decision = decideAutoMerge(
+			withHead({ changedPaths: [{ path: "scripts/xsec/upstream-known-failures.txt", status: "M" }] }),
+		);
 		expect(decision.merge).toBe(false);
 		expect(decision.reasons).toEqual(["it changes fork-owned file scripts/xsec/upstream-known-failures.txt"]);
 	});
@@ -195,11 +200,54 @@ describe("the auto-merge condition", () => {
 		]);
 	});
 
-	it("keeps a pull request that changes fork-owned files or upstream workflow files", () => {
-		const owned = withHead({ changedPaths: ["packages/ai/src/index.ts", "scripts/xsec/sync.ts"] });
-		expect(decideAutoMerge(owned).reasons).toEqual(["it changes fork-owned file scripts/xsec/sync.ts"]);
-		const workflow = withHead({ changedPaths: [".github/workflows/nix.yml"] });
-		expect(decideAutoMerge(workflow).reasons).toEqual(["it changes workflow file .github/workflows/nix.yml"]);
+	it("keeps a pull request that changes a fork-owned file, workflow files included", () => {
+		// A sync must not rewrite the fork's own workflows, however the edit is typed.
+		const owned = withHead({
+			changedPaths: [
+				{ path: "packages/ai/src/index.ts", status: "M" },
+				{ path: "scripts/xsec/sync.ts", status: "M" },
+				{ path: ".github/workflows/xsec-ci.yml", status: "M" },
+			],
+		});
+		expect(decideAutoMerge(owned).reasons).toEqual([
+			"it changes fork-owned file scripts/xsec/sync.ts",
+			"it changes fork-owned file .github/workflows/xsec-ci.yml",
+		]);
+	});
+
+	it("keeps a pull request that adds an upstream workflow file, which would start running in the fork", () => {
+		const added = withHead({ changedPaths: [{ path: ".github/workflows/nix.yml", status: "A" }] });
+		expect(decideAutoMerge(added).reasons).toEqual(["it adds workflow file .github/workflows/nix.yml"]);
+	});
+
+	it("keeps a pull request that renames an upstream workflow, since the new name is an added file", () => {
+		// Renames are off in the diff, so a rename arrives as a deletion plus an addition.
+		const renamed = withHead({
+			changedPaths: [
+				{ path: ".github/workflows/ci.yml", status: "D" },
+				{ path: ".github/workflows/ci-upstream.yml", status: "A" },
+			],
+		});
+		expect(decideAutoMerge(renamed).reasons).toEqual(["it adds workflow file .github/workflows/ci-upstream.yml"]);
+	});
+
+	it("keeps a pull request that changes an upstream workflow file's type, which is not a plain edit", () => {
+		const retyped = withHead({ changedPaths: [{ path: ".github/workflows/ci.yml", status: "T" }] });
+		expect(decideAutoMerge(retyped).reasons).toEqual([
+			"it changes workflow file .github/workflows/ci.yml (status T)",
+		]);
+	});
+
+	it("merges a pull request that only edits or deletes upstream workflow files", () => {
+		// Upstream's workflows stay disabled, and check-workflows.ts fails a run where one is enabled, so an edit
+		// or a deletion starts nothing. Holding the sync for it would stop every release that edits a workflow.
+		const edited = withHead({
+			changedPaths: [
+				{ path: ".github/workflows/ci.yml", status: "M" },
+				{ path: ".github/workflows/nix.yml", status: "D" },
+			],
+		});
+		expect(decideAutoMerge(edited)).toEqual({ merge: true, reasons: [] });
 	});
 
 	it("keeps a draft, a pull request into another base, and one from a fork", () => {

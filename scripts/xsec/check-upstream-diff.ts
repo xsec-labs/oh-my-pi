@@ -33,10 +33,14 @@ export interface AllowlistEntry {
 	testPaths: string[];
 }
 
-export interface FileChange {
+/** One changed file from `git diff --name-status`. */
+export interface NameStatusEntry {
 	/** Git status letter: A, M, D or T. Renames are disabled, so no R or C. */
 	status: string;
 	path: string;
+}
+
+export interface FileChange extends NameStatusEntry {
 	/** Added plus removed lines; null for a binary file. */
 	lines: number | null;
 }
@@ -97,13 +101,17 @@ export function parseChanges(nameStatus: string, numstat: string): FileChange[] 
 		const filePath = rest.join("\t");
 		lineCounts.set(filePath, added === "-" || removed === "-" ? null : Number(added) + Number(removed));
 	}
+	return parseNameStatus(nameStatus).map(entry => ({ ...entry, lines: lineCounts.get(entry.path) ?? null }));
+}
+
+/** Splits `git diff --name-status -z` output (with `--no-renames`) into one entry per changed file. */
+export function parseNameStatus(nameStatus: string): NameStatusEntry[] {
 	const fields = nameStatus.split("\0");
-	const changes: FileChange[] = [];
+	const entries: NameStatusEntry[] = [];
 	for (let i = 0; i + 1 < fields.length; i += 2) {
-		const filePath = fields[i + 1];
-		changes.push({ status: fields[i], path: filePath, lines: lineCounts.get(filePath) ?? null });
+		entries.push({ status: fields[i], path: fields[i + 1] });
 	}
-	return changes;
+	return entries;
 }
 
 /**

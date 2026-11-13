@@ -4,7 +4,7 @@
  * `sync.ts` gathers the facts from git and the GitHub API and acts on what these
  * functions return.
  */
-import { isOwnedPath } from "./check-upstream-diff";
+import { isOwnedPath, type NameStatusEntry } from "./check-upstream-diff";
 
 /** Head branch of every sync pull request, followed by the upstream version. */
 export const SYNC_BRANCH_PREFIX = "sync/v";
@@ -14,6 +14,15 @@ export const SYNC_BASE_BRANCH = "xsec";
 
 /** Check conclusions that count as green. A check that was skipped does not block. */
 const GREEN_CONCLUSIONS: ReadonlySet<string> = new Set(["success", "skipped"]);
+
+/** Upstream's workflow files live here. */
+const WORKFLOW_DIR = ".github/workflows/";
+
+/**
+ * Statuses that leave an upstream workflow file harmless: an edit keeps the file's
+ * disabled state, and a deletion removes it. Any other status stays for review.
+ */
+const HARMLESS_WORKFLOW_STATUSES: ReadonlySet<string> = new Set(["M", "D"]);
 
 const PLAIN_VERSION = /^(\d+)\.(\d+)\.(\d+)$/;
 const RELEASE_TAG = /^v(\d+\.\d+\.\d+)$/;
@@ -135,8 +144,8 @@ export interface SyncHeadFacts {
 	extraCommits: readonly string[];
 	/** The head's tree is exactly the tree git's automatic merge of its two parents gives. */
 	treeIsAutomaticMerge: boolean;
-	/** Paths the head changes relative to its first parent. */
-	changedPaths: readonly string[];
+	/** Files the head changes relative to its first parent, with git's status letter for each. */
+	changedPaths: readonly NameStatusEntry[];
 }
 
 export interface AutoMergeFacts {
@@ -197,13 +206,25 @@ export function decideAutoMerge(facts: AutoMergeFacts): AutoMergeDecision {
 		reasons.push(`it carries commits beyond the merge: ${head.extraCommits.map(shortSha).join(", ")}`);
 	}
 	if (!head.treeIsAutomaticMerge) reasons.push("its tree differs from git's automatic merge");
-	for (const changed of head.changedPaths) {
+	for (const change of head.changedPaths) {
 		// scripts/xsec/upstream-allowlist.txt sits under the owned prefix, so this covers it too.
-		if (isOwnedPath(changed)) reasons.push(`it changes fork-owned file ${changed}`);
-		else if (changed.startsWith(".github/workflows/")) reasons.push(`it changes workflow file ${changed}`);
+		const reason = isOwnedPath(change.path) ? `it changes fork-owned file ${change.path}` : workflowReason(change);
+		if (reason) reasons.push(reason);
 	}
 	reasons.push(...checkReasons(facts.checkRuns, facts.statusState));
 	return { merge: reasons.length === 0, reasons };
+}
+
+/**
+ * Why an upstream workflow file change keeps the pull request open, or null when it
+ * does not. A file that is added becomes a new workflow in the fork, and so does one
+ * whose status is anything but an edit or a deletion; those stay for review.
+ */
+function workflowReason(change: NameStatusEntry): string | null {
+	if (!change.path.startsWith(WORKFLOW_DIR) || HARMLESS_WORKFLOW_STATUSES.has(change.status)) return null;
+	return change.status === "A"
+		? `it adds workflow file ${change.path}`
+		: `it changes workflow file ${change.path} (status ${change.status})`;
 }
 
 function checkReasons(runs: readonly CheckRunFact[], statusState: string | null): string[] {

@@ -120,10 +120,15 @@ jobs:
               if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
          - uses: ./.github/actions/bun-install
          - name: Install prebuilt native addon
+           # On Windows the bun-install action leaves bun on PATH for bash only: it installs bun with the
+           # Unix script and writes a Git Bash path, which pwsh cannot resolve. So the bun steps run under
+           # bash on every leg.
+           shell: bash
            run: bun scripts/xsec/fetch-natives.ts ${{ matrix.target_id }}
          - name: ACP contract tests against the release binary
            # The tests start the binary named by XSEC_CONTRACT_OMP, not the source tree, so this step gates
            # what users install. The path is absolute because the tests run from packages/coding-agent.
+           shell: bash
            working-directory: packages/coding-agent
            env:
               XSEC_CONTRACT_OMP: ${{ github.workspace }}/binaries/${{ matrix.binary }}

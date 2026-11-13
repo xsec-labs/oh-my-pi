@@ -71,7 +71,8 @@ describe("working directory masking with secrets enabled", () => {
 
 		const realTarget = path.join(run.projectDir, "written-by-model.txt");
 		expect(fs.readFileSync(realTarget, "utf8")).toBe("written by the model");
-		expect(JSON.stringify(run.child.connection.updates)).toContain(realTarget);
+		// ACP reports a path with forward slashes on every platform, so the real path is compared in that spelling.
+		expect(JSON.stringify(run.child.connection.updates)).toContain(realTarget.split(path.sep).join("/"));
 		expect(agentMessageText(run.child.connection)).toContain("written");
 	});
 });

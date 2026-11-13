@@ -117,6 +117,8 @@ A sync pull request closed without merging is not reopened. Delete its branch to
 
 **Runners.** GitHub-hosted only. The merge uses `git merge-tree --write-tree`, which needs git 2.38 or newer; `ubuntu-24.04` ships a newer git.
 
+**Masking goldens.** `packages/coding-agent/test/xsec/masking-golden.json` holds the digests of the seeded corpus that `masking-golden.test.ts` checks. They regenerate only in a sync pull request that names the upstream change (`bun packages/coding-agent/test/xsec/masking-golden.ts --write`). A digest that differs in any other pull request means the masking output changed, so the change is fixed, not the digest.
+
 ## Known gaps in model discovery
 
 `models.discovery: configured` limits the discovery that `ModelRegistry` starts. Three paths sit outside that limit. Each one lists the condition under which it sends a request. The package 7 probe on the built binary decides whether one of them needs a fix before package 2.
@@ -140,13 +142,34 @@ The three ACP entries below are cases where the ACP client does not get the rest
 
 ## Known gaps in masking cost
 
-`SecretObfuscator.obfuscate` (`packages/coding-agent/src/secrets/obfuscator.ts`) grows faster than linearly with the number of matches. `bun scripts/xsec/masking-scaling.ts` measures it on synthetic text, and a child that runs past its 300 s budget is reported as stopped. The times below are single runs on a shared 4-vCPU container, and each one names its checkout. The obfuscator is the same at xsec 691b4c2b, 18949c94 and this branch (`packages/coding-agent/src/secrets` is unchanged), so the line numbers hold at all three. A follow-up change will batch the per-match copy and cache the search in `emitChunk`. Its effect is not measured in this repository, so the three items below are still treated as quadratic.
+`SecretObfuscator.obfuscate` (`packages/coding-agent/src/secrets/obfuscator.ts`) grows faster than linearly with the number of matches in some shapes. `bun scripts/xsec/masking-scaling.ts` measures it on synthetic text, and a child that runs past its budget is reported as stopped. The times below are single runs on a shared 4-vCPU container, and each one names its checkout. Repeated runs of the same code differed by about 12 percent there, so read them as orders of magnitude. The line numbers are for the obfuscator at this branch's head.
 
-- **Replace mode.** The per-match copy with `replaceRange` also runs in replace mode, at `obfuscator.ts` lines 905 to 913, 1222 to 1223 and 1488 to 1489. The follow-up leaves them alone. Desktop masks in obfuscate mode, and in replace mode a match reads text that an earlier edit already changed (`replaceEnd`, lines 870 to 880), so batching those edits needs an equality test of its own. The script runs obfuscate mode only, so replace mode has no measurements yet.
-- **Matches over existing placeholders.** Each match is checked against every placeholder range already in the string (`obfuscator.ts` lines 1792 and 1873 to 1941; `placeholder-scan.ts` lines 113 and 241), so the time grows with matches times placeholders. At checkout dd362611, `bun scripts/xsec/masking-scaling.ts --shapes regex-after-placeholders --sizes 1000,4000,8000` masks 8,000 new matches in a text that already holds 8,000 placeholders in 9.0 s (8,984.6 ms). The 1,000 and 4,000 rows of the same run took 172.6 ms and 2,483.5 ms.
-- **One pass per plain secret.** Each plain secret makes its own full pass over the text (`#replaceOutsidePlaceholdersTracked`, `obfuscator.ts` lines 1631 to 1670). At checkout dd362611, `bun scripts/xsec/masking-scaling.ts --shapes plain-distinct --sizes 4000` masks 4,000 distinct plain secrets in 68.6 s (68,565.8 ms over 362,890 input characters). From 1,000 to 4,000 secrets the time grows about cubically (977.7 ms to 69,141.7 ms at checkout 691b4c2b), so it grows with the number of secrets times the length of the text.
+Package 14b batches the obfuscate-mode regex edits into one pass per regex entry (`writeMatch` and `applyTextEdits` in `src/xsec/text-edits.ts`) and keeps the next occurrence of each plain secret in `emitChunk`. Obfuscate-mode output is unchanged: the golden digests were taken before the change (see Masking goldens under Sync with upstream). Three items remain.
 
-So masking is not linear in matches: matches over existing placeholders and passes per secret are quadratic, and replace mode has no measurement yet.
+- **Replace mode.** The per-match copy with `replaceRange` still runs in replace mode, at `obfuscator.ts` lines 920 to 921, 927 to 928, 1236 to 1237 and 1502 to 1503. Desktop's secrets file also has replace-mode entries (an alias word, or a rule with a replacement), so this path is in use. In replace mode a match reads text that an earlier edit already changed (`replaceEnd`, line 885), so batching those edits needs an equality test of its own. The script runs obfuscate mode only, so replace mode has no measurements yet.
+- **Matches over existing placeholders.** Each match is checked against every placeholder range already in the string (`obfuscator.ts` lines 1814 and 1895 to 1959; `placeholder-scan.ts` lines 113 and 241), so the time grows with matches times placeholders. Package 11b (PR #25) adds one source of these matches: `maskOutboundContext` (`src/xsec/outbound-context.ts`) masks the system prompt and the tool descriptions of each provider request, so a request repeats the matches over text that earlier requests already masked, placeholders included.
+- **One pass per plain secret.** Each plain secret makes its own full pass over the text (`#replaceOutsidePlaceholdersTracked`, `obfuscator.ts` lines 1645 to 1691). Package 14b removed the repeated searches inside a pass, so one pass costs one scan of the text. The passes still multiply with the number of secrets, which is why the `plain-distinct` rows below stay quadratic.
+
+Measured at checkout 24b99c63 (before package 14b) and at b9edf52f (after, the code change with its early return). `exponent` is log(time ratio) over log(size ratio) from the previous size: about 1 is linear, 2 quadratic, 3 cubic.
+
+| Shape | Matches | Before | After |
+|---|---:|---:|---:|
+| `plain-same` | 1,000 | 4.4 ms | 4.8 ms |
+| `plain-same` | 4,000 | 6.3 ms | 5.5 ms |
+| `plain-same` | 16,000 | 8.8 ms | 14.3 ms |
+| `plain-distinct` | 1,000 | 1,385.2 ms | 373.5 ms |
+| `plain-distinct` | 4,000 | 89,232.1 ms (exponent 3.00) | 5,972.6 ms (2.00) |
+| `plain-distinct` | 16,000 | stopped at the 120 s budget | 108,861.2 ms (2.09) |
+| `regex` | 1,000 | 101.2 ms | 21.0 ms |
+| `regex` | 4,000 | 814.4 ms (1.50) | 60.1 ms (0.76) |
+| `regex` | 16,000 | 11,040.8 ms (1.88) | 178.7 ms (0.79) |
+| `regex-after-placeholders` | 1,000 | 225.8 ms | 160.2 ms |
+| `regex-after-placeholders` | 4,000 | 2,949.3 ms (1.85) | 1,350.2 ms (1.54) |
+| `regex-after-placeholders` | 16,000 | 53,159.3 ms (2.09) | 29,637.5 ms (2.23) |
+
+The `slice chars` column of the script counts the receiver length of each `slice`. Since package 14b the regex path slices the flat input, which V8 does not copy, so that column no longer measures copy work on the regex path. Compare times there.
+
+So masking is not linear in matches: matches over existing placeholders (the `regex-after-placeholders` rows) and passes per secret (the `plain-distinct` rows) stay quadratic, and replace mode has no measurement yet.
 
 ## Working locally
 

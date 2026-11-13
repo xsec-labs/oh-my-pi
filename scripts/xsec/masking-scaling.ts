@@ -6,12 +6,14 @@
  *
  * Usage, from the checkout root:
  *   bun scripts/xsec/masking-scaling.ts [--sizes 1000,4000,16000]
- *     [--shapes plain-same,plain-distinct,regex] [--budget-ms 300000]
+ *     [--shapes plain-same,plain-distinct,regex,regex-after-placeholders] [--budget-ms 300000]
  *
  * Shapes, each with N matches in the text:
  * - plain-same: one plain secret occurs N times;
  * - plain-distinct: N different plain secrets occur once each;
- * - regex: one regex entry matches N different tokens, each a new placeholder.
+ * - regex: one regex entry matches N different tokens, each a new placeholder;
+ * - regex-after-placeholders: an earlier call (not timed) masks N tokens into placeholders, then
+ *   the timed call masks N new tokens in a text that already holds those N placeholders.
  *
  * Every measurement runs in a child process with a time budget, so a size that
  * takes too long is reported as stopped and the run goes on. Time comes from a
@@ -33,7 +35,7 @@ import { $ } from "bun";
 import { type SecretEntry, SecretObfuscator } from "../../packages/coding-agent/src/secrets/obfuscator";
 import { repoRoot } from "./upstream";
 
-const SHAPES = ["plain-same", "plain-distinct", "regex"] as const;
+const SHAPES = ["plain-same", "plain-distinct", "regex", "regex-after-placeholders"] as const;
 type Shape = (typeof SHAPES)[number];
 type Mode = "time" | "count";
 
@@ -67,6 +69,8 @@ interface Measurement {
 interface Corpus {
 	text: string;
 	entries: SecretEntry[];
+	/** Text that an earlier call masks before the timed one, for the shapes with existing placeholders. */
+	primer?: string;
 }
 
 /** A 32-bit linear congruential generator, so every run builds the same text. */
@@ -90,6 +94,7 @@ function buildCorpus(shape: Shape, matches: number): Corpus {
 	const next = seededRandom(SEED);
 	const entries: SecretEntry[] = [];
 	const parts: string[] = [];
+	let primer: string[] | undefined;
 	if (shape === "plain-same") {
 		const secret = "synthetic-plain-secret-0001";
 		entries.push({ type: "plain", content: secret });
@@ -101,10 +106,15 @@ function buildCorpus(shape: Shape, matches: number): Corpus {
 			parts.push(secret + FILLER);
 		}
 	} else {
+		// Both regex shapes share the entry. The second one masks a primer text first (see `measure`).
 		entries.push({ type: "regex", content: "tok_[A-Za-z0-9]{20}", literalPrefixes: ["tok_"] });
+		if (shape === "regex-after-placeholders") {
+			primer = [];
+			for (let i = 0; i < matches; i++) primer.push(`tok_${randomToken(next, 20)}${FILLER}`);
+		}
 		for (let i = 0; i < matches; i++) parts.push(`tok_${randomToken(next, 20)}${FILLER}`);
 	}
-	return { text: parts.join(""), entries };
+	return { text: parts.join(""), entries, primer: primer?.join("") };
 }
 
 /** Counts the characters `slice` and `indexOf` handle in this process until `stop` runs. */
@@ -137,20 +147,26 @@ function measure(shape: Shape, matches: number, mode: Mode): Measurement {
 	const corpus = buildCorpus(shape, matches);
 	// The obfuscator is built outside the timed call; the product builds it once per session.
 	const obfuscator = new SecretObfuscator(corpus.entries, PLACEHOLDER_KEY);
+	// The primer is masked by an earlier call that is not timed, and its work is not counted either.
+	const input = corpus.primer === undefined ? corpus.text : obfuscator.obfuscate(corpus.primer) + corpus.text;
 	const counter = mode === "count" ? startCountingStringWork() : undefined;
 	const started = performance.now();
-	const output = obfuscator.obfuscate(corpus.text);
+	const output = obfuscator.obfuscate(input);
 	const ms = performance.now() - started;
 	counter?.stop();
 	const placeholders = (output.split("$$").length - 1) / 2;
-	if (placeholders !== matches) {
-		throw new Error(`${shape} with ${matches} matches: ${placeholders} placeholders in the output`);
+	// Each new match becomes one placeholder; the placeholders of the primer stay in the output.
+	const expected = corpus.primer === undefined ? matches : 2 * matches;
+	if (placeholders !== expected) {
+		throw new Error(
+			`${shape} with ${matches} matches: ${placeholders} placeholders in the output, expected ${expected}`,
+		);
 	}
 	return {
 		shape,
 		matches,
 		mode,
-		inputChars: corpus.text.length,
+		inputChars: input.length,
 		outputChars: output.length,
 		placeholders,
 		ms: Math.round(ms * 10) / 10,

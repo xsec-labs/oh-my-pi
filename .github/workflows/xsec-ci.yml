@@ -94,7 +94,7 @@ jobs:
            run: |
               if [ -d packages/coding-agent/test/xsec ]; then
                  cd packages/coding-agent
-                 bun test --parallel=1 --timeout="$((OMP_TEST_TIMEOUT * 1000))" test/xsec
+                 bun test --parallel=1 --timeout="$((OMP_TEST_TIMEOUT * 1000))" test/xsec < /dev/null
               else
                  echo "packages/coding-agent/test/xsec does not exist yet; nothing to run."
               fi
@@ -107,10 +107,23 @@ jobs:
                  echo "upstream-allowlist.txt lists no upstream test file yet; nothing to run."
                  exit 0
               fi
-              while read -r dir file; do
+              # The file list is read from fd 3, and each bun test gets stdin from /dev/null, as
+              # upstream's harness gives its test processes (scripts/ci-test-ts.ts spawns them with
+              # Bun's default stdin). A test that reads stdin would otherwise consume the rest of
+              # the list: the rpc modes in test/acp-lazy-startup.test.ts claim Bun's singleton
+              # stdin. The count check fails the step if fewer files run than are listed.
+              listed_count="$(printf '%s\n' "$listed" | grep -c .)"
+              ran=0
+              while read -r dir file <&3; do
+                 ran=$((ran + 1))
                  echo "==> $dir: $file"
-                 (cd "$dir" && bun test --parallel=1 --timeout="$((OMP_TEST_TIMEOUT * 1000))" "$file")
-              done <<< "$listed"
+                 (cd "$dir" && bun test --parallel=1 --timeout="$((OMP_TEST_TIMEOUT * 1000))" "$file" < /dev/null)
+              done 3<<< "$listed"
+              echo "upstream test files: listed=$listed_count run=$ran"
+              if [ "$ran" -ne "$listed_count" ]; then
+                 echo "::error::only $ran of $listed_count listed upstream test files ran"
+                 exit 1
+              fi
 
    test:
       name: "Test ${{ matrix.name }}"

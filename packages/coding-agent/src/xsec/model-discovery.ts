@@ -16,24 +16,36 @@ import { cfgModelsDiscovery } from "./settings";
 
 export type ModelDiscoveryMode = "all" | "configured";
 
-let unreadableWarned = false;
+const warnedKeys = new Set<string>();
+
+/** Logs `message` the first time `key` is seen in this process, so a per-request read cannot flood the log. */
+function warnOnce(key: string, message: string, context?: Record<string, unknown>): void {
+	if (warnedKeys.has(key)) return;
+	warnedKeys.add(key);
+	logger.warn(message, context);
+}
 
 /**
  * The mode for `settingsInstance` (the global settings when absent). With no settings loaded and none
- * passed, nothing is configured and the default applies. A loaded instance whose mode cannot be read
- * is `configured`: discovery stays limited, and the failure is logged once.
+ * passed, nothing is configured and the default applies, and that fallback is logged once. A loaded
+ * instance whose mode cannot be read is `configured`: discovery stays limited, and the failure is logged once.
  */
 export function readModelDiscoveryMode(settingsInstance?: Settings): ModelDiscoveryMode {
-	if (settingsInstance === undefined && Settings.current === null) return "all";
+	if (settingsInstance === undefined && Settings.current === null) {
+		warnOnce(
+			"no-settings",
+			"models.discovery read before any settings were loaded; the default (all) applies. Load settings first.",
+		);
+		return "all";
+	}
 	try {
 		return cfgModelsDiscovery.get(settingsInstance ?? settings);
 	} catch (error) {
-		if (!unreadableWarned) {
-			unreadableWarned = true;
-			logger.warn("models.discovery cannot be read; model discovery stays limited to the configured providers", {
-				error: error instanceof Error ? error.message : String(error),
-			});
-		}
+		warnOnce(
+			"unreadable",
+			"models.discovery cannot be read; model discovery stays limited to the configured providers",
+			{ error: error instanceof Error ? error.message : String(error) },
+		);
 		return "configured";
 	}
 }

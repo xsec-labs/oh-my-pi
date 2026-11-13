@@ -1,6 +1,6 @@
 # Full-suite run log
 
-This file records each run of the full-suite gate on `xsec`. The rule for the known-failures list is in [the README](README.md#ci): a failed job is re-run once and both attempts are recorded here, and a test goes on `upstream-known-failures.txt` only through a fork pull request with a T-37 review, with evidence of three consecutive failing runs of the same job on unmodified upstream code or a reproduction on demand locally.
+This file records each run of the full-suite gate on `xsec`. The rules for the known-failures list and for re-runs are in [the README](README.md#ci); each run is recorded here with both attempts.
 
 ## Run 43379659258 (2026-11-13)
 

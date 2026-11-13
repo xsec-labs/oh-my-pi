@@ -14,6 +14,9 @@ name: xsec CI
 #
 # Self-hosted runners must never be attached to this repository: it is public,
 # and a pull request could run its code on them.
+#
+# Checkouts keep no credentials (persist-credentials: false). Nothing here pushes,
+# and check-upstream-diff.ts fetches upstream's public repository anonymously.
 
 on:
    pull_request:
@@ -44,6 +47,8 @@ jobs:
          actions: read
       steps:
          - uses: actions/checkout@v4
+           with:
+              persist-credentials: false
          - uses: ./.github/actions/bun-install
          - name: Upstream files changed by the fork
            run: bun scripts/xsec/check-upstream-diff.ts
@@ -60,6 +65,8 @@ jobs:
       timeout-minutes: 20
       steps:
          - uses: actions/checkout@v4
+           with:
+              persist-credentials: false
          - uses: ./.github/actions/bun-install
          - name: Type check workspace
            run: bun run ci:check:full
@@ -87,6 +94,8 @@ jobs:
          BUN_JSC_numberOfGCMarkers: "1"
       steps:
          - uses: actions/checkout@v4
+           with:
+              persist-credentials: false
          - uses: ./.github/actions/bun-install
          - name: Install prebuilt native addons
            run: bun scripts/xsec/fetch-natives.ts linux-x64
@@ -152,6 +161,8 @@ jobs:
                - { name: "cli smoke", script: "ci:test:smoke", timeout: 15 }
       steps:
          - uses: actions/checkout@v4
+           with:
+              persist-credentials: false
          - uses: ./.github/actions/bun-install
          - name: Install prebuilt native addons
            run: bun scripts/xsec/fetch-natives.ts linux-x64

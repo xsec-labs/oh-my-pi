@@ -11,5 +11,5 @@
 # Keep entries to call lines only: the implementation belongs under
 # packages/coding-agent/src/xsec/. Remove an entry once upstream has taken the
 # change.
-packages/coding-agent/src/config/all-settings.ts 2
-packages/coding-agent/src/mcp/tool-bridge.ts 2
+packages/coding-agent/src/config/all-settings.ts 2 packages/coding-agent/test/config/*.test.ts packages/coding-agent/test/settings-*.test.ts
+packages/coding-agent/src/mcp/tool-bridge.ts 2 packages/coding-agent/test/mcp*.test.ts packages/coding-agent/test/mcp/*.test.ts

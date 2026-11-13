@@ -10,7 +10,12 @@
 import type { AssistantMessage, AssistantMessageEvent } from "@oh-my-pi/pi-ai";
 import { isRecord } from "@oh-my-pi/pi-utils";
 import type { AgentSessionEvent } from "../session/agent-session";
-import { deobfuscateAssistantContent, deobfuscateToolArguments } from "../secrets/message-transform";
+import type { SessionContext } from "../session/session-context";
+import {
+	deobfuscateAssistantContent,
+	deobfuscateSessionContext,
+	deobfuscateToolArguments,
+} from "../secrets/message-transform";
 import type { SecretObfuscator } from "../secrets/obfuscator";
 
 /** What the restorer reads from a session: its obfuscator, which `setObfuscator` may replace mid-run. */
@@ -262,4 +267,28 @@ export function restoreAcpText<T extends string | undefined>(owner: AcpSecretOwn
 	const obfuscator = activeObfuscator(owner);
 	if (!obfuscator || text === undefined) return text;
 	return obfuscator.deobfuscate(text) as T;
+}
+
+/** A session whose stored history is replayed to a client: its obfuscator, and the context its entries build. */
+export interface AcpReplaySession extends AcpSecretOwner {
+	readonly sessionManager: { buildSessionContext(): SessionContext };
+}
+
+/**
+ * The stored history of a session with its placeholders restored, for replaying it to the client. Thinking blocks
+ * are restored here too: `deobfuscateSessionContext` leaves them alone, but the replay sends them as text. The
+ * stored entries are not changed, so the session file and the provider requests stay as they are.
+ */
+export function restoredSessionContext(session: AcpReplaySession): SessionContext {
+	const obfuscator = activeObfuscator(session);
+	const context = deobfuscateSessionContext(session.sessionManager.buildSessionContext(), obfuscator);
+	if (!obfuscator) return context;
+	const messages = context.messages.map(message => {
+		if (message.role !== "assistant") return message;
+		const content = message.content.map(block =>
+			block.type === "thinking" ? { ...block, thinking: obfuscator.deobfuscate(block.thinking) } : block,
+		);
+		return { ...message, content };
+	});
+	return { ...context, messages };
 }

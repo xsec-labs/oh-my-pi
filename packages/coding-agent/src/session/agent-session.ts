@@ -224,6 +224,7 @@ import {
 	obfuscateProviderContext,
 } from "../secrets/message-transform";
 import type { SecretObfuscator } from "../secrets/obfuscator";
+import { bindHookSecrets, protectHookRevision, restoreHookArgs } from "../xsec/secret-tool-hook";
 import { USER_AWAIT_ID } from "../registry/agent-awaits";
 import { type AgentRef, AgentRegistry, type AgentRegistryApi } from "../registry/agent-registry";
 import { cfgSecretsEnabled } from "../secrets/settings";
@@ -2730,6 +2731,7 @@ export class AgentSession implements SettingsScope, AgentViewSession {
 			this.#recordModelCallSystemPrompt(prompt);
 		});
 		this.#obfuscator = config.obfuscator;
+		bindHookSecrets(this.#extensionRunner, () => this.#obfuscator);
 		const providerBoundaryHost: SessionProviderBoundaryHost = {
 			agent: this.agent,
 			sessionManager: this.sessionManager,
@@ -5831,13 +5833,14 @@ export class AgentSession implements SettingsScope, AgentViewSession {
 		// or user policy), so resolving under the most permissive mode is exact;
 		// the wrapper still enforces the mode-accurate gate before execution.
 		const userPolicies: Record<string, unknown> = cfgToolsApproval.get(this.settings);
-		const approvalArgs = computer ? { actions: computer.actions } : ctx.args;
+		const approvalArgs = restoreHookArgs(this.#obfuscator, computer ? { actions: computer.actions } : ctx.args);
 		if (resolveApproval(ctx.tool, approvalArgs, "yolo", userPolicies).policy === "deny") {
 			return undefined;
 		}
-		const eventArgs = computer
-			? { actions: computer.actions, pendingSafetyChecks: computer.pendingSafetyChecks }
-			: ctx.args;
+		const eventArgs = restoreHookArgs(
+			this.#obfuscator,
+			computer ? { actions: computer.actions, pendingSafetyChecks: computer.pendingSafetyChecks } : ctx.args,
+		);
 		runner.markToolCallEmitted(ctx.toolCall.id, ctx.tool.name);
 		let callResult: Awaited<ReturnType<ExtensionRunner["emitToolCall"]>>;
 		try {
@@ -5860,7 +5863,10 @@ export class AgentSession implements SettingsScope, AgentViewSession {
 		}
 		// A computer call's event input is a synthetic {actions, pendingSafetyChecks}
 		// view, not the execution params — a revision cannot map back onto them.
-		const args = callResult?.input !== undefined && !computer ? callResult.input : undefined;
+		const args =
+			callResult?.input !== undefined && !computer
+				? protectHookRevision(this.#obfuscator, callResult.input)
+				: undefined;
 		const additionalContext = callResult?.additionalContext;
 		if (args === undefined && additionalContext === undefined) return undefined;
 		return { args, additionalContext };

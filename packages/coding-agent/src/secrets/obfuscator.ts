@@ -1,3 +1,4 @@
+import { obfuscateMinLength } from "../xsec/secret-min-length";
 import {
 	buildHashBase,
 	buildKeyedReplacementRun,
@@ -6,7 +7,6 @@ import {
 	inferCaseHint,
 	labelCollidesWithAnySecret,
 	lookupFriendlyPlaceholderAlias,
-	MIN_OBFUSCATE_SECRET_LEN,
 	PLACEHOLDER_RE,
 	placeholderWithoutFriendlyName,
 	type ReplaceRegexScan,
@@ -322,6 +322,7 @@ export class SecretObfuscator {
 	#keyProvider: (() => string) | undefined;
 
 	constructor(entries: SecretEntry[], key: string | (() => string) = defaultPlaceholderKey()) {
+		const minObfuscateLength = obfuscateMinLength();
 		if (typeof key === "function") {
 			this.#keyProvider = key;
 		} else {
@@ -392,7 +393,7 @@ export class SecretObfuscator {
 			if (entry.type !== "plain") continue;
 			const mode = entry.mode ?? "obfuscate";
 			if (mode === "obfuscate") {
-				if (entry.content.length < MIN_OBFUSCATE_SECRET_LEN) {
+				if (entry.content.length < minObfuscateLength) {
 					// Tone down short plain secret obfuscation to avoid false matches on small words like "esp".
 					continue;
 				}
@@ -913,7 +914,7 @@ export class SecretObfuscator {
 						origin = replaceRange(origin, match.start, match.end, "I".repeat(replacement.length));
 					}
 				} else {
-					if (match.scanMatchLength < MIN_OBFUSCATE_SECRET_LEN) {
+					if (match.scanMatchLength < obfuscateMinLength()) {
 						// Tone down short regex matches to avoid obfuscating small
 						// words/fragments. Measure the regex's own match length in the
 						// canonical (placeholder-expanded) scan view, not the rewritten

@@ -7,8 +7,9 @@ name: xsec CI
 # the fork's checks, the fork's own tests, upstream's CLI smoke entry and the
 # upstream test files listed in upstream-allowlist.txt ("everyday" mode). Sync
 # pull requests (head `sync/*`) and manual runs also run upstream's full
-# pull-request suite. The fork does not change Rust, so native addons are
-# upstream's prebuilt ones from npm, and the Rust, bazel, install-method and
+# pull-request suite, judged by run-full-suite.ts against
+# upstream-known-failures.txt. The fork does not change Rust, so native addons
+# are upstream's prebuilt ones from npm, and the Rust, bazel, install-method and
 # release jobs do not run.
 #
 # Self-hosted runners must never be attached to this repository: it is public,
@@ -124,9 +125,9 @@ jobs:
             # script, shard, concurrency and timeout (minutes).
             include:
                # Known failure: upstream's test browser-relay-detach races a 750 ms
-               # wall-clock GRACE_MS window and fails intermittently on these shards
-               # on GitHub-hosted runners. It still runs; it is neither skipped nor
-               # quarantined. See scripts/xsec/README.md.
+               # wall-clock window and fails intermittently on loaded runners. It
+               # still runs; run-full-suite.ts accepts only the failures listed in
+               # upstream-known-failures.txt. See scripts/xsec/README.md.
                - { name: "coding-agent native 1/3", script: "ci:test:coding-agent:native", shard: "1/3", concurrency: "4", timeout: 25 }
                - { name: "coding-agent native 2/3", script: "ci:test:coding-agent:native", shard: "2/3", concurrency: "4", timeout: 25 }
                - { name: "coding-agent native 3/3", script: "ci:test:coding-agent:native", shard: "3/3", concurrency: "4", timeout: 25 }
@@ -144,8 +145,14 @@ jobs:
          - name: Install project-local TUI debug tool dependencies
            if: matrix.omp_tools
            run: bun install --cwd .omp/tools --frozen-lockfile
+         # The runner entries are judged against upstream-known-failures.txt. The
+         # CLI smoke entry is not a test runner and runs as it is.
          - name: Run ${{ matrix.script }}
+           if: matrix.script != 'ci:test:smoke'
            env:
               OMP_TEST_CONCURRENCY: ${{ matrix.concurrency }}
               OMP_TEST_SHARD: ${{ matrix.shard }}
+           run: bun scripts/xsec/run-full-suite.ts ${{ matrix.script }}
+         - name: Run ${{ matrix.script }}
+           if: matrix.script == 'ci:test:smoke'
            run: bun run ${{ matrix.script }}

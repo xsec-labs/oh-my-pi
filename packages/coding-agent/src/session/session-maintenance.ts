@@ -3889,7 +3889,7 @@ export class SessionMaintenance {
 				messages: compactMessages,
 			})) as { context?: string[]; prompt?: string; preserveData?: Record<string, unknown> } | undefined;
 
-			hookContext = result?.context;
+			hookContext = result?.context?.map(line => this.#host.obfuscateTextForProvider(line) ?? line);
 			hookPrompt = result?.prompt;
 			preserveData = result?.preserveData;
 		}
@@ -3916,7 +3916,7 @@ export class SessionMaintenance {
 			preserveData,
 			loadMemoryContext: () =>
 				(memoryContext ??= this.#collectMemoryBackendContext(preparation, signal).then(context =>
-					context ? [context] : undefined,
+					context ? [this.#host.obfuscateTextForProvider(context) ?? context] : undefined,
 				)),
 		};
 	}

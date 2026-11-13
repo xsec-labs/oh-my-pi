@@ -1,12 +1,13 @@
-import type { Context, Tool } from "@oh-my-pi/pi-ai";
+import type { Context, DeveloperMessage, Message, Tool } from "@oh-my-pi/pi-ai";
 import { isRecord } from "@oh-my-pi/pi-utils";
-import { obfuscateProviderContext } from "../secrets/message-transform";
+import { obfuscateMessages } from "../secrets/message-transform";
 import type { SecretObfuscator } from "../secrets/obfuscator";
 
-// `obfuscateProviderContext` rewrites the conversation messages only. The system prompt and the tool
-// descriptions reach the provider as they are, so a value a rule matches there (the name of the project
-// folder, which the project context file paths repeat) left the machine. The placeholders are the
-// session's own: a value gets the same placeholder in every part of a request, and a tool call the model
+// `obfuscateMessages` rewrites the user, tool result and assistant messages, and the developer messages a
+// user wrote. A developer message the harness wrote (an async job's result, a reminder), the system prompt
+// and the tool descriptions reach the provider as they are, so a value a rule matches there (the name of
+// the project folder, which the project context file paths repeat) left the machine. The placeholders are
+// the session's own: a value gets the same placeholder in every part of a request, and a tool call the model
 // writes with one is restored before the tool runs, as it already is for messages.
 
 /** Masks one piece of outbound text. Identity unless the session has secrets to obfuscate. */
@@ -15,24 +16,69 @@ export function maskOutboundText(obfuscator: SecretObfuscator | undefined, text:
 }
 
 /**
- * Masks a provider context: its messages as `obfuscateProviderContext` does, and its system prompt and tool
+ * Masks the messages of a provider request: what `obfuscateMessages` rewrites, and the developer messages it
+ * leaves alone. Returns the given array itself when the session obfuscates nothing or nothing in it matches.
+ */
+export function maskOutboundMessages(obfuscator: SecretObfuscator | undefined, messages: Message[]): Message[] {
+	if (!obfuscator?.obfuscates()) return messages;
+	return obfuscator.batch(() => {
+		const obfuscated = obfuscateMessages(obfuscator, messages);
+		let changed = obfuscated !== messages;
+		const masked = obfuscated.map(message => {
+			const next = maskHarnessMessage(obfuscator, message);
+			if (next !== message) changed = true;
+			return next;
+		});
+		return changed ? masked : messages;
+	});
+}
+
+/**
+ * Masks a provider context: its messages as {@link maskOutboundMessages} does, and its system prompt and tool
  * descriptions. Returns the given context itself when the session obfuscates nothing or nothing in it matches.
  */
 export function maskOutboundContext(obfuscator: SecretObfuscator | undefined, context: Context): Context {
 	if (!obfuscator?.obfuscates()) return context;
-	const messaged = obfuscateProviderContext(obfuscator, context);
-	const systemPrompt = maskStrings(obfuscator, messaged.systemPrompt);
-	const tools = maskTools(obfuscator, messaged.tools);
-	const inactiveTools = maskTools(obfuscator, messaged.inactiveTools);
-	if (systemPrompt === messaged.systemPrompt && tools === messaged.tools && inactiveTools === messaged.inactiveTools) {
-		return messaged;
+	return obfuscator.batch(() => {
+		const messages = maskOutboundMessages(obfuscator, context.messages);
+		const messaged = messages === context.messages ? context : { ...context, messages };
+		const systemPrompt = maskStrings(obfuscator, messaged.systemPrompt);
+		const tools = maskTools(obfuscator, messaged.tools);
+		const inactiveTools = maskTools(obfuscator, messaged.inactiveTools);
+		if (
+			systemPrompt === messaged.systemPrompt &&
+			tools === messaged.tools &&
+			inactiveTools === messaged.inactiveTools
+		) {
+			return messaged;
+		}
+		return {
+			...messaged,
+			...(systemPrompt === undefined ? {} : { systemPrompt }),
+			...(tools === undefined ? {} : { tools }),
+			...(inactiveTools === undefined ? {} : { inactiveTools }),
+		};
+	});
+}
+
+/** Masks a developer message the harness wrote: any attribution but the user's, which `obfuscateMessages` masks. */
+function maskHarnessMessage(obfuscator: SecretObfuscator, message: Message): Message {
+	if (message.role !== "developer" || message.attribution === "user") return message;
+	return maskDeveloperText(obfuscator, message);
+}
+
+/** Masks the text of a developer message, keeping the message itself when no text changes. */
+function maskDeveloperText(obfuscator: SecretObfuscator, message: DeveloperMessage): DeveloperMessage {
+	if (typeof message.content === "string") {
+		const content = obfuscator.obfuscate(message.content);
+		return content === message.content ? message : { ...message, content };
 	}
-	return {
-		...messaged,
-		...(systemPrompt === undefined ? {} : { systemPrompt }),
-		...(tools === undefined ? {} : { tools }),
-		...(inactiveTools === undefined ? {} : { inactiveTools }),
-	};
+	const content = message.content.map(block => {
+		if (block.type !== "text") return block;
+		const text = obfuscator.obfuscate(block.text);
+		return text === block.text ? block : { ...block, text };
+	});
+	return content.every((block, index) => block === message.content[index]) ? message : { ...message, content };
 }
 
 /** Masks each string of a list, keeping the list itself when none of them changes. */

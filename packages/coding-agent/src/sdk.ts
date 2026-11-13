@@ -4733,11 +4733,13 @@ async function createAgentSessionScoped(options: CreateAgentSessionOptions): Pro
 				// Keep per-request volatility out of the system prompt: the date/cwd
 				// reminder rides on the first user turn so open-weight providers keep
 				// their tool-schema prefix cache (#7404).
-				return dateCwdReminder.transform(
+				const reminded = dateCwdReminder.transform(
 					transformed,
 					formatLocalCalendarDate(),
 					maskOutboundText(obfuscator, normalizePromptPath(sessionManager.getCwd())),
 				);
+				// Last: a resumed session replays reminders journaled with secrets off, which hold the real cwd.
+				return maskOutboundContext(obfuscator, reminded);
 			};
 		};
 		const transformProviderContext = createTransformProviderContext(

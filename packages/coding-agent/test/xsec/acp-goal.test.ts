@@ -369,6 +369,34 @@ describe("_xsec/session/goal", () => {
 		});
 	});
 
+	// Restoring a persisted goal awaits the tool set, so a submission can be admitted during it. Control
+	// must check again before its first mutation, so the transcript keeps the goal it had.
+	it("refuses control when a submission is admitted while the goal is being restored", async () => {
+		const goalTranscript = await persistedTranscript("admitted-during-restore");
+		const goalFile = fileOf(goalTranscript);
+		const writer = createSession({ sessionManager: goalTranscript });
+		const { agent: writerAgent, sessionId: writerSessionId } = await openSession(writer);
+		await writerAgent.extMethod(GOAL_CONTROL_METHOD, {
+			sessionId: writerSessionId,
+			action: "create",
+			objective: "restored mid-admission",
+		});
+		await writer.sessionManager.flush();
+
+		const session = createSession({ sessionManager: await SessionManager.open(goalFile) });
+		const { agent, sessionId } = await openSession(session);
+		const setTools = session.setActiveToolsByName.bind(session);
+		vi.spyOn(session, "setActiveToolsByName").mockImplementationOnce(async names => {
+			Object.defineProperty(session, "isStreaming", { configurable: true, get: () => true });
+			await setTools(names);
+		});
+
+		const error = await rejectionOf(agent.extMethod(GOAL_CONTROL_METHOD, { sessionId, action: "pause" }));
+
+		expect(error.code).toBe(SESSION_BUSY_CODE);
+		expect(session.sessionManager.buildSessionContext().mode).toBe("goal");
+	});
+
 	it("refuses to start a goal when goal mode is disabled in settings", async () => {
 		const { agent, sessionId } = await openSession(createSession({ goalEnabled: false }));
 

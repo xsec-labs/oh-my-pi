@@ -49,8 +49,11 @@ export async function controlGoal(session: AgentSession, request: GoalControlReq
 	if (!cfgGoalEnabled.get(session.settings)) {
 		throw RequestError.invalidRequest({ action }, "goal mode is disabled in OMP settings");
 	}
-	if (!isIdle(session)) throw RequestError.sessionBusy(`cannot ${action} a goal while the session is busy`);
+	assertIdle(session, action);
 	const state = await reconcile(session);
+	// reconcile awaits (the tool set, the goal runtime's restore), so a submission can be admitted
+	// in the meantime. Check again here; no await separates this check from the first mutation.
+	assertIdle(session, action);
 	switch (request.action) {
 		case "create": {
 			assertNotInPlanMode(session, action);
@@ -138,6 +141,10 @@ async function setGoalTool(session: AgentSession, enabled: boolean): Promise<voi
 	if (names.includes(GOAL_TOOL_NAME) === enabled) return;
 	const others = names.filter(name => name !== GOAL_TOOL_NAME);
 	await session.setActiveToolsByName(enabled ? [...others, GOAL_TOOL_NAME] : others);
+}
+
+function assertIdle(session: AgentSession, action: GoalControlAction): void {
+	if (!isIdle(session)) throw RequestError.sessionBusy(`cannot ${action} a goal while the session is busy`);
 }
 
 function isIdle(session: AgentSession): boolean {

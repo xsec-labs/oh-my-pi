@@ -6,11 +6,11 @@ The repository is public. Never commit keys, account details or customer data: a
 
 ## Branches and tags
 
-| Ref | Content | Rule |
-| --- | --- | --- |
-| `main` | Mirror of upstream `main` | Fast-forwarded by the sync job only |
-| `xsec` (default) | An upstream release tag plus the fork's commits | Pull requests only; upstream is merged in, never rebased |
-| `v<upstream>-xsec.<n>` | A fork release | `<n>` counts fork releases on one upstream version |
+| Ref                    | Content                                         | Rule                                                     |
+| ---------------------- | ----------------------------------------------- | -------------------------------------------------------- |
+| `main`                 | Mirror of upstream `main`                       | Fast-forwarded by the sync job only                      |
+| `xsec` (default)       | An upstream release tag plus the fork's commits | Pull requests only; upstream is merged in, never rebased |
+| `v<upstream>-xsec.<n>` | A fork release                                  | `<n>` counts fork releases on one upstream version       |
 
 Open pull requests against `xsec` in this repository. GitHub preselects upstream as the base of a pull request from a fork, so name the base explicitly.
 
@@ -46,6 +46,14 @@ Not run here: the Rust license check (`cargo-deny`), the bazel and native addon 
 The fork never compiles the native addon. `fetch-natives.ts` installs every `.node` file of `@oh-my-pi/pi-natives-<tag>` at the version the checkout is based on, and checks the tarball against the registry's `sha512` integrity value. Upstream's own pull-request jobs take `@latest` instead; the fork pins the version so the addons match the checkout.
 
 CI uses GitHub-hosted runners only. Never attach a self-hosted runner to this repository: a pull request could run its code on it.
+
+## Known gaps in model discovery
+
+`models.discovery: configured` limits the discovery that `ModelRegistry` starts. Three paths sit outside that limit. Each one lists the condition under which it sends a request. The package 7 probe on the built binary decides whether one of them needs a fix before package 2.
+
+- **LiteLLM usage.** The usage provider for `litellm`, and for every `discovery.type: litellm` provider, is registered whatever `models.discovery` says. It requests `<base URL>/v2/user/info`, and `<base URL>/key/info` for keys that start with `sk-`, only when usage is read for a LiteLLM API key. The base URL is the provider's configured one, or the built-in default for `litellm`. This is usage reporting, not model discovery. The phase 0 probe saw no LiteLLM host at session start.
+- **Extension dynamic managers.** A provider that an extension registers with `fetchDynamicModels` runs its own function on every discovery pass, session start included. The limit does not filter these managers, and the guard does not see the function's requests. Desktop's extensions register no such provider today.
+- **Cursor.** In `configured` mode, Cursor discovery runs only when `cursor` is listed in `models.yml`. It then calls the configured base URL, or `CURSOR_DEFAULT_BASE_URL`, with the global `fetch`, and with an HTTP/2 client when that fails. Neither goes through the guard.
 
 ## Working locally
 

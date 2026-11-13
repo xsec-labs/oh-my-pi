@@ -2258,10 +2258,9 @@ export class ModelRegistry {
 			providerFilter
 				? this.#discoverableProviders.filter(provider => providerFilter.has(provider.provider))
 				: this.#discoverableProviders
-		).filter(
-			provider =>
-				!disabledProviders.has(provider.provider) && this.#discoveryLimit.allowsProvider(provider.provider),
-		);
+		)
+			.filter(provider => !disabledProviders.has(provider.provider))
+			.filter(provider => this.#discoveryLimit.allowsProvider(provider.provider));
 		const configuredDiscoveriesPromise =
 			selectedDiscoverableProviders.length === 0
 				? Promise.resolve<Array<ConfiguredModelDiscoveryResult & { provider: DiscoveryProviderConfig }>>([])
@@ -2937,10 +2936,8 @@ export class ModelRegistry {
 	): Promise<BuiltInDiscoveryResult> {
 		let failure: string | undefined;
 		try {
-			const manager = createModelManager({
-				...this.#discoveryLimit.withoutCatalogSource(options),
-				cacheDbPath: this.#cacheDbPath,
-			});
+			const limitedOptions = this.#discoveryLimit.withoutCatalogSource(options);
+			const manager = createModelManager({ ...limitedOptions, cacheDbPath: this.#cacheDbPath });
 			const result = await withModelDiscoveryTimeout(RUNTIME_DYNAMIC_MODEL_FETCH_TIMEOUT_MS, () =>
 				manager.refresh(strategy),
 			);

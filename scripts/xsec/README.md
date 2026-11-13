@@ -20,7 +20,7 @@ Fork code lives under prefixes upstream does not use, so merging upstream never 
 
 - `packages/coding-agent/src/xsec/` for implementation
 - `packages/coding-agent/test/xsec/` for tests
-  - Contract fixtures in `test/xsec/contract/fixtures/` import nothing from OMP's source, types included: a type import from OMP's source made the child fail its next prompt with `Missing 'default' export` for the browser prelude. Each fixture declares the shapes it uses itself.
+  - Contract fixtures in `test/xsec/contract/fixtures/` import nothing from OMP's source, types included: in source mode (`XSEC_CONTRACT_OMP` unset), a type import from OMP's source made the child fail its next prompt with `Missing 'default' export` for the browser prelude. Each fixture declares the shapes it uses itself.
 - `scripts/xsec/` for CI scripts
 - `.github/workflows/xsec-*.yml` for workflows
 

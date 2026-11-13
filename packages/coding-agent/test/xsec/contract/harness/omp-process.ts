@@ -90,10 +90,10 @@ export async function createContractHome(options: ContractHomeOptions = {}): Pro
 			...(options.compactionKeepRecentTokens === undefined
 				? []
 				: ["compaction:", `  keepRecentTokens: ${options.compactionKeepRecentTokens}`]),
-			// One `secrets:` block: given secrets.yml content turns masking on, and `secretsEnabled` sets it explicitly.
+			// One `secrets:` block. An explicit `secretsEnabled` decides; otherwise given secrets.yml content turns masking on.
 			...(options.secrets === undefined && options.secretsEnabled === undefined
 				? []
-				: ["secrets:", `  enabled: ${options.secrets !== undefined || options.secretsEnabled === true}`]),
+				: ["secrets:", `  enabled: ${options.secretsEnabled ?? options.secrets !== undefined}`]),
 			"",
 		].join("\n"),
 	);

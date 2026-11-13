@@ -100,6 +100,7 @@ import {
 } from "../../tts/models";
 import { canonicalizeMessage } from "@oh-my-pi/pi-tui/chat/thinking-display";
 import { handleXsecExtMethod, isXsecExtMethod, resumeIf } from "../../xsec/acp";
+import { restoreAcpSessionEvents, restoreAcpText } from "../../xsec/acp-secret-stream";
 import { createAcpClientBridge } from "./acp-client-bridge";
 import {
 	extractAssistantMessageText,
@@ -1298,7 +1299,8 @@ export class AcpAgent implements Agent {
 				};
 
 				record.promptTurn.unsubscribe = record.session.subscribe(event => {
-					this.#trackPromptEvent(record, event);
+					for (const acpEvent of restoreAcpSessionEvents(record.session, event))
+						this.#trackPromptEvent(record, acpEvent);
 				});
 
 				// Cancelled before the turn ever started (dispatch window or
@@ -2208,7 +2210,7 @@ export class AcpAgent implements Agent {
 		if (!lastAssistant) {
 			return;
 		}
-		const text = extractAssistantMessageText(lastAssistant);
+		const text = restoreAcpText(record.session, extractAssistantMessageText(lastAssistant));
 		if (text.length === 0) {
 			return;
 		}
@@ -2247,7 +2249,7 @@ export class AcpAgent implements Agent {
 		if (lastAssistant?.stopReason !== "error") {
 			return;
 		}
-		const errorMessage = lastAssistant.errorMessage;
+		const errorMessage = restoreAcpText(record.session, lastAssistant.errorMessage);
 		if (!errorMessage || isSilentAbort(lastAssistant)) {
 			return;
 		}

@@ -7,10 +7,12 @@ import { isRecord } from "@oh-my-pi/pi-utils";
 
 /**
  * One scripted answer: `content` is streamed as text deltas, or `hold` keeps the response open instead.
- * `toolCall` streams a tool call in place of the text, so the client runs that tool with `arguments`.
+ * `thinking` is streamed first as reasoning deltas. `toolCall` streams a tool call in place of the text,
+ * so the client runs that tool with `arguments`.
  */
 export interface ScriptedReply {
 	content: string[];
+	thinking?: string[];
 	hold?: boolean;
 	toolCall?: { name: string; arguments: string };
 }
@@ -123,6 +125,7 @@ function streamReply(reply: ScriptedReply): Response {
 			controller.enqueue(event(chunk({ role: "assistant", content: "" }, null)));
 			// A held reply stays open; the client's disconnect is what ends it.
 			if (reply.hold) return;
+			for (const text of reply.thinking ?? []) controller.enqueue(event(chunk({ reasoning_content: text }, null)));
 			if (reply.toolCall) {
 				const { name, arguments: args } = reply.toolCall;
 				const call = { index: 0, id: "call_contract", type: "function", function: { name, arguments: args } };

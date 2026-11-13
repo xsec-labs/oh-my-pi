@@ -43,6 +43,11 @@ export interface ContractHomeOptions {
 	toolNameCollision?: "keep-first" | "error";
 	/** `secrets.enabled` in the settings overlay. Left out, the setting keeps its default, off. */
 	secretsEnabled?: boolean;
+	/**
+	 * The home's `secrets.yml` (a YAML array of entries). Given, the overlay turns `secrets.enabled` on, which is
+	 * how Desktop turns masking on. Left out, masking is off.
+	 */
+	secrets?: string;
 }
 
 /** Starts a fresh home for one test: its own agent directory, workspace, models file and settings overlay. */
@@ -80,10 +85,14 @@ export async function createContractHome(options: ContractHomeOptions = {}): Pro
 			"goal:",
 			`  enabled: ${goalEnabled}`,
 			...(options.workerThreads === undefined ? [] : ["task:", `  workerThreads: ${options.workerThreads}`]),
-			...(options.secretsEnabled === undefined ? [] : ["secrets:", `  enabled: ${options.secretsEnabled}`]),
+			// One `secrets:` block: given secrets.yml content turns masking on, and `secretsEnabled` sets it explicitly.
+			...(options.secrets === undefined && options.secretsEnabled === undefined
+				? []
+				: ["secrets:", `  enabled: ${options.secrets !== undefined || options.secretsEnabled === true}`]),
 			"",
 		].join("\n"),
 	);
+	if (options.secrets !== undefined) fs.writeFileSync(path.join(dirs.agentDir, "secrets.yml"), options.secrets);
 
 	// The one model provider, in the Desktop `models.yml` format, pointing at the fake model server.
 	fs.writeFileSync(

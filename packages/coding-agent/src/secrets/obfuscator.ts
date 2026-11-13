@@ -1,3 +1,4 @@
+import { createOccurrenceCursor } from "../xsec/occurrence-cursor";
 import { obfuscateMinLength } from "../xsec/secret-min-length";
 import { applyTextEdits, isDescendingDisjoint, type TextEdit } from "../xsec/text-edits";
 import {
@@ -1655,22 +1656,16 @@ export class SecretObfuscator {
 		let outText = "";
 		let outOrigin = "";
 		let pending = 0;
-		// The first occurrence at or after the last query (-2: none yet, -1: none left). Queries never move back (chunks
-		// and occurrences are visited left to right), so a cached occurrence stays the answer until a query passes it
-		// (package 14b). Re-searching for every chunk made each pass scan to the next occurrence once per chunk.
-		let nextIdx = -2;
-		const nextOccurrence = (from: number): number => {
-			if (nextIdx === -2 || (nextIdx >= 0 && nextIdx < from)) nextIdx = text.indexOf(search, from);
-			return nextIdx;
-		};
+		// The cursor searches again only when its last answer no longer holds for the query (package 14b).
+		const occurrences = createOccurrenceCursor(text, search);
 		const emitChunk = (from: number, to: number): void => {
 			let last = from;
-			let idx = nextOccurrence(from);
+			let idx = occurrences.next(from);
 			while (idx !== -1 && idx + search.length <= to) {
 				outText += text.slice(last, idx) + replacement;
 				outOrigin += origin.slice(last, idx) + tag.repeat(replacement.length);
 				last = idx + search.length;
-				idx = nextOccurrence(last);
+				idx = occurrences.next(last);
 			}
 			outText += text.slice(last, to);
 			outOrigin += origin.slice(last, to);

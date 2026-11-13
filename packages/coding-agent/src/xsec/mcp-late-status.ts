@@ -2,10 +2,14 @@
  * MCP state that changes after `session/new` has returned, reported to the ACP client as session updates:
  * a server still connecting when the startup window closed, its later connect or failure, and a tool name
  * collision that a refresh finds once the session is running. Each one reaches the client as an
- * `agent_message_chunk`, the channel that already carries startup failures.
+ * `agent_message_chunk`, the channel that already carries startup failures. Each note also carries a
+ * machine-readable marker at `content._meta.xsec.mcpNotice`, so a client can tell it from model text.
  *
- * The reporter changes what the client can see, never when or whether a session starts. Desktop sets
- * `OMP_MCP_STARTUP_TIMEOUT_MS=0`, so its sessions wait for every server and have no late state to report.
+ * The reporter changes what the client can see, never when or whether a session starts. Desktop #868
+ * (xSecDesktop a1a5e5ec, on main) sets `OMP_MCP_STARTUP_TIMEOUT_MS=0` when it starts omp. That makes a session
+ * wait for every server, so it has no late connects to report. The variable takes effect only from OMP 18.20
+ * on: Desktop's current 18.0.9 pin ignores it, so until Desktop pins a fork OMP its sessions keep the 250 ms
+ * window and do see late state.
  */
 import { logger } from "@oh-my-pi/pi-utils";
 import type { SessionUpdate } from "@oh-my-pi/pi-utils/acp";
@@ -23,6 +27,17 @@ export type LateMcpManager = Pick<MCPManager, "getConnectionStatus" | "addConnec
 
 /** Sends one session update to the client. */
 export type LateMcpUpdateSink = (update: SessionUpdate) => Promise<unknown>;
+
+/**
+ * The marker on each note, at `content._meta.xsec.mcpNotice`. The three server kinds set `server`. A
+ * `tool_collision` sets `tool` (the name the client sees), `winner` and `loser` (`server:tool` origins),
+ * and `enforced` (true when the policy fails the tool list instead of keeping the winner).
+ */
+export type LateMcpNotice =
+	| { kind: "server_connecting"; server: string }
+	| { kind: "server_connected"; server: string }
+	| { kind: "server_failed"; server: string }
+	| { kind: "tool_collision"; tool: string; winner: string; loser: string; enforced: boolean };
 
 type ServerConfigs = Readonly<Record<string, MCPServerConfig | undefined>>;
 
@@ -61,7 +76,10 @@ export class LateMcpReporter {
 		for (const name of Object.keys(configs)) {
 			if (manager.getConnectionStatus(name) !== "connecting") continue;
 			this.#pending.add(name);
-			this.#say(`MCP server "${name}" is still connecting. Its tools will be added when it connects.`);
+			this.#say(`MCP server "${name}" is still connecting. Its tools will be added when it connects.`, {
+				kind: "server_connecting",
+				server: name,
+			});
 		}
 		this.#detach = manager.addConnectionStatusListener(event => this.onStatus(event));
 	}
@@ -91,12 +109,21 @@ export class LateMcpReporter {
 	/** Reports a connect or a failure of a server that was still connecting when it was followed. */
 	onStatus(event: McpConnectionStatusEvent): void {
 		if (event.type === "connected") {
-			if (this.#pending.delete(event.serverName)) this.#say(`MCP server "${event.serverName}" connected.`);
+			if (this.#pending.delete(event.serverName)) {
+				this.#say(`MCP server "${event.serverName}" connected.`, {
+					kind: "server_connected",
+					server: event.serverName,
+				});
+			}
 		} else if (event.type === "failed") {
 			if (this.#pending.delete(event.serverName)) {
 				const reason = oneLine(event.error);
 				this.#say(
 					`MCP server "${event.serverName}" failed to connect: ${reason}. ${this.#recovery(event.serverName)}`,
+					{
+						kind: "server_failed",
+						server: event.serverName,
+					},
 				);
 			}
 		}
@@ -113,7 +140,13 @@ export class LateMcpReporter {
 		const outcome = enforced
 			? `${winner} and ${loser} both provide it, so the tool list was not updated.`
 			: `${winner} is kept and ${loser} is not added.`;
-		this.#say(`MCP tool name collision on "${collision.name}": ${outcome}`);
+		this.#say(`MCP tool name collision on "${collision.name}": ${outcome}`, {
+			kind: "tool_collision",
+			tool: collision.name,
+			winner,
+			loser,
+			enforced,
+		});
 	}
 
 	/** Runs `fn`, and reports each collision that `fn` finds, including collisions in the work it starts. */
@@ -128,8 +161,12 @@ export class LateMcpReporter {
 			: "Its tools are unavailable until the client restarts the session.";
 	}
 
-	#say(text: string): void {
-		this.#emit({ sessionUpdate: "agent_message_chunk", content: { type: "text", text } });
+	/** Queues or sends one note: the text is for people, and the marker is for clients that act on it. */
+	#say(text: string, notice: LateMcpNotice): void {
+		this.#emit({
+			sessionUpdate: "agent_message_chunk",
+			content: { type: "text", text, _meta: { xsec: { mcpNotice: notice } } },
+		});
 	}
 
 	#emit(update: SessionUpdate): void {

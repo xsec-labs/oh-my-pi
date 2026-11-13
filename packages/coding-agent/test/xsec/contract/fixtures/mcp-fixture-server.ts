@@ -55,12 +55,14 @@ function handle(request: JsonRpcRequest): void {
 }
 
 // A test that needs this server to come up late passes a gate file as the third argument. The server reads nothing
-// until that file exists, so the test decides when the server starts answering.
+// until that file exists, so the test decides when the server starts answering. A fourth argument of `exit` makes
+// the server exit once the gate opens, without answering, so the test can make a late server fail.
 async function serve(): Promise<void> {
 	const gatePath = process.argv[3];
 	if (gatePath) {
 		while (!(await Bun.file(gatePath).exists())) await Bun.sleep(10);
 	}
+	if (process.argv[4] === "exit") process.exit(1);
 	let pending = "";
 	process.stdin.setEncoding("utf8");
 	process.stdin.on("data", (chunk: string) => {

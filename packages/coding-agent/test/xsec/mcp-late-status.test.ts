@@ -1,7 +1,11 @@
 import { describe, expect, it } from "bun:test";
 import type { MCPServerConfig } from "@oh-my-pi/pi-coding-agent/mcp/types";
 import type { McpConnectionStatusEvent } from "@oh-my-pi/pi-coding-agent/mcp/startup-events";
-import { type LateMcpManager, LateMcpReporter } from "@oh-my-pi/pi-coding-agent/xsec/mcp-late-status";
+import {
+	type LateMcpManager,
+	type LateMcpNotice,
+	LateMcpReporter,
+} from "@oh-my-pi/pi-coding-agent/xsec/mcp-late-status";
 import type { MCPToolNameCollisionObservation } from "@oh-my-pi/pi-coding-agent/xsec/mcp-tool-collision";
 import type { SessionUpdate } from "@oh-my-pi/pi-utils/acp";
 
@@ -30,7 +34,8 @@ function fakeManager(states: Record<string, ConnectionState>) {
 
 /**
  * Records what the reporter sends. `done` settles once `expected` updates have arrived, so a test waits on the
- * updates it expects and never on a delay.
+ * updates it expects and never on a delay. `texts` is the text other clients read; `notices` is the marker a
+ * client that acts on MCP state reads at `content._meta.xsec.mcpNotice`.
  */
 function recordingSink(expected: number) {
 	const sent: SessionUpdate[] = [];
@@ -47,6 +52,12 @@ function recordingSink(expected: number) {
 					? [update.content.text]
 					: [],
 			),
+		notices: () =>
+			sent.flatMap(update => {
+				if (update.sessionUpdate !== "agent_message_chunk" || update.content.type !== "text") return [];
+				const xsec = update.content._meta?.xsec as { mcpNotice?: LateMcpNotice } | undefined;
+				return xsec?.mcpNotice ? [xsec.mcpNotice] : [];
+			}),
 	};
 }
 
@@ -72,7 +83,7 @@ function collision(enforced: boolean): MCPToolNameCollisionObservation {
 describe("LateMcpReporter", () => {
 	it("notes a server still connecting, then reports only that server's connect", async () => {
 		const { manager, emit } = fakeManager({ slow: "connecting", fast: "connected" });
-		const { sink, done, texts } = recordingSink(2);
+		const { sink, done, texts, notices } = recordingSink(2);
 		const reporter = new LateMcpReporter(sink);
 		reporter.follow(manager, { slow: stdio("slow"), fast: stdio("fast") });
 		reporter.open();
@@ -85,11 +96,15 @@ describe("LateMcpReporter", () => {
 			'MCP server "slow" is still connecting. Its tools will be added when it connects.',
 			'MCP server "slow" connected.',
 		]);
+		expect(notices()).toEqual([
+			{ kind: "server_connecting", server: "slow" },
+			{ kind: "server_connected", server: "slow" },
+		]);
 	});
 
 	it("reports a late failure with the recovery that fits the server's transport", async () => {
 		const { manager, emit } = fakeManager({ remote: "connecting", local: "connecting" });
-		const { sink, done, texts } = recordingSink(4);
+		const { sink, done, texts, notices } = recordingSink(4);
 		const reporter = new LateMcpReporter(sink);
 		reporter.follow(manager, { remote: http("https://example.test/mcp"), local: stdio("local") });
 		reporter.open();
@@ -102,11 +117,15 @@ describe("LateMcpReporter", () => {
 			'MCP server "remote" failed to connect: 401 Unauthorized. Its tools are unavailable until it is reauthorized (/mcp reauth remote) or the client restarts the session.',
 			'MCP server "local" failed to connect: spawn ENOENT. Its tools are unavailable until the client restarts the session.',
 		]);
+		expect(notices().slice(2)).toEqual([
+			{ kind: "server_failed", server: "remote" },
+			{ kind: "server_failed", server: "local" },
+		]);
 	});
 
 	it("reports a collision once while armed, with the outcome the policy enforces", async () => {
 		const { manager } = fakeManager({});
-		const { sink, done, texts } = recordingSink(2);
+		const { sink, done, texts, notices } = recordingSink(2);
 		const reporter = new LateMcpReporter(sink);
 		reporter.follow(manager, {});
 		reporter.open();
@@ -123,12 +142,28 @@ describe("LateMcpReporter", () => {
 			'MCP tool name collision on "mcp__foo_bar_echo": foo.bar:echo is kept and foo_bar:echo is not added.',
 			'MCP tool name collision on "mcp__foo_bar_echo": foo.bar:echo and foo_bar:echo both provide it, so the tool list was not updated.',
 		]);
+		expect(notices()).toEqual([
+			{
+				kind: "tool_collision",
+				tool: "mcp__foo_bar_echo",
+				winner: "foo.bar:echo",
+				loser: "foo_bar:echo",
+				enforced: false,
+			},
+			{
+				kind: "tool_collision",
+				tool: "mcp__foo_bar_echo",
+				winner: "foo.bar:echo",
+				loser: "foo_bar:echo",
+				enforced: true,
+			},
+		]);
 	});
 
 	it("stop lets go of the manager and forgets its pending servers", async () => {
 		const first = fakeManager({ old: "connecting" });
 		const second = fakeManager({ next: "connecting" });
-		const { sink, done, texts } = recordingSink(2);
+		const { sink, done, texts, notices } = recordingSink(2);
 		const reporter = new LateMcpReporter(sink);
 		reporter.follow(first.manager, { old: stdio("old") });
 		reporter.open();
@@ -143,6 +178,10 @@ describe("LateMcpReporter", () => {
 		expect(texts()).toEqual([
 			'MCP server "old" is still connecting. Its tools will be added when it connects.',
 			'MCP server "next" is still connecting. Its tools will be added when it connects.',
+		]);
+		expect(notices()).toEqual([
+			{ kind: "server_connecting", server: "old" },
+			{ kind: "server_connecting", server: "next" },
 		]);
 	});
 });

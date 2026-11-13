@@ -147,6 +147,19 @@ The two ACP entries below are cases where the ACP client does not get the restor
 
 So masking is not linear in matches: matches over existing placeholders and passes per secret are quadratic, and replace mode has no measurement yet.
 
+## Late MCP notes
+
+After `session/new` returns, MCP state can still change: a server that was connecting when the startup window closed, its later connect or failure, and a tool name collision that a refresh finds. `packages/coding-agent/src/xsec/mcp-late-status.ts` reports each one as an `agent_message_chunk`. Each note keeps its text, for clients that only show text, and carries a marker at `content._meta.xsec.mcpNotice`, for clients that act on it:
+
+- `kind: "server_connecting"` and `server`: the server did not connect within the startup window, so its tools are not listed yet.
+- `kind: "server_connected"` and `server`: a server from that set connected. The refresh that adds its tools may land just after this note.
+- `kind: "server_failed"` and `server`: a server from that set failed. Its tools stay unlisted until the client restarts the session, or, for http and sse servers, until it is reauthorized.
+- `kind: "tool_collision"`, with `tool`, `winner`, `loser` and `enforced`: a refresh found two servers minting one tool name. `winner` and `loser` are `server:tool` origins. `enforced` is true when `mcp.toolNameCollision` is `error`, so the tool list was not updated. Otherwise the winner is kept and the loser is not added.
+
+A client should read the marker rather than the text. The notes can arrive in the middle of a prompt turn, so they are not model output. "Connected" can come before the tool refresh that lists the tools, so a client that needs the tool list should wait for it. With `OMP_MCP_STARTUP_TIMEOUT_MS=0`, `session/new` waits for every server, so a session gets no `server_*` notes and only `tool_collision` can occur.
+
+Known gap: a server that fails after the startup window has closed, but before the reporter follows the manager, is not reported. Its tools are simply absent. Desktop #868 (xSecDesktop a1a5e5ec) sets the variable to 0. It takes effect only from OMP 18.20 on, and Desktop's current 18.0.9 pin ignores it, so Desktop sessions can still see `server_*` notes until Desktop pins a fork OMP.
+
 ## Working locally
 
 ```sh

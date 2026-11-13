@@ -4,6 +4,7 @@
  * merge is written as a commit object, and the caller decides whether to push it.
  */
 import { $ } from "bun";
+import { parseNameStatus } from "./check-upstream-diff";
 import { repoRoot } from "./upstream";
 import type { SyncHeadFacts } from "./sync-policy";
 
@@ -140,11 +141,11 @@ export async function inspectSyncHead(head: string, base: string, tag: string, c
 		const headTree = (await gitText(["rev-parse", `${head}^{tree}`], { cwd })).trim();
 		treeIsAutomaticMerge = merged.clean && merged.tree === headTree;
 	}
-	const changed = await gitText(["diff", "--name-only", "--no-renames", "-z", `${base}...${head}`], { cwd });
+	const changed = await gitText(["diff", "--name-status", "--no-renames", "-z", `${base}...${head}`], { cwd });
 	return {
 		parents,
 		extraCommits: beyond,
 		treeIsAutomaticMerge,
-		changedPaths: changed.split("\0").filter(filePath => filePath !== ""),
+		changedPaths: parseNameStatus(changed),
 	};
 }

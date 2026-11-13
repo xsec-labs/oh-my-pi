@@ -3,6 +3,8 @@ import { RequestError } from "@oh-my-pi/pi-utils/acp";
 import type { AgentSession } from "../session/agent-session";
 import { type GoalControlRequest, controlGoal, isGoalControlAction, readGoal } from "./goal";
 
+export * from "./acp-continue";
+
 const SESSION_CAPABILITIES_METHOD = "_xsec/session/capabilities";
 const SESSION_GOAL_GET_METHOD = "_xsec/session/goal/get";
 const SESSION_GOAL_CONTROL_METHOD = "_xsec/session/goal/control";

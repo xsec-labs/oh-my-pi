@@ -93,7 +93,36 @@ describe("inspecting a sync branch head", () => {
 		const facts = await inspectSyncHead(merged.sha, xsec, tag, dir);
 		expect(isPristineUpstreamMerge(facts, tag)).toBe(true);
 		// The fork's b.txt is xsec's own content, so the pull request changes only upstream files.
-		expect([...facts.changedPaths].sort()).toEqual(["a.txt", "c.txt"]);
+		expect(facts.changedPaths).toEqual([
+			{ path: "a.txt", status: "M" },
+			{ path: "c.txt", status: "A" },
+		]);
+	});
+
+	it("reports a workflow file the release edits as modified and one it adds as added", async () => {
+		// The status decides whether a sync pull request may stay open, so git's letters are pinned here.
+		const dir = await fs.mkdtemp(path.join(os.tmpdir(), "xsec-sync-git-"));
+		created.push(dir);
+		await gitText(["init", "--quiet", "-b", "upstream"], { cwd: dir });
+		const base = await commitFiles(
+			dir,
+			{ ".github/workflows/ci.yml": "on: push\n", "a.txt": "a\n" },
+			"upstream base",
+		);
+		const tag = await commitFiles(
+			dir,
+			{ ".github/workflows/ci.yml": "on: pull_request\n", ".github/workflows/new.yml": "on: push\n" },
+			"upstream workflows",
+		);
+		await gitText(["checkout", "--quiet", "-b", "xsec", base], { cwd: dir });
+		const xsec = await commitFiles(dir, { "b.txt": "b fork\n" }, "fork change b");
+		const merged = await mergeUpstreamRelease(xsec, tag, "Merge upstream workflows", dir);
+		if (!merged.clean) throw new Error("the fixture merge must be clean");
+		const facts = await inspectSyncHead(merged.sha, xsec, tag, dir);
+		expect(facts.changedPaths).toEqual([
+			{ path: ".github/workflows/ci.yml", status: "M" },
+			{ path: ".github/workflows/new.yml", status: "A" },
+		]);
 	});
 
 	it("does not treat a commit on top of the merge as the workflow's merge", async () => {

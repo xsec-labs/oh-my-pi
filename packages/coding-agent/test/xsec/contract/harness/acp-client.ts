@@ -75,12 +75,28 @@ export interface AcpChild {
 	close(): Promise<void>;
 }
 
+/** Extra arguments and environment for one `omp acp` child. */
+export interface AcpChildOptions {
+	/** Appended after `acp --config <file> --model <model>`, such as `--extension <path>`. */
+	args?: string[];
+	/** Added to the home's environment for this child only. */
+	env?: Record<string, string>;
+}
+
 /** Starts `omp acp` for the home and connects to it. The child is not initialized yet. */
-export async function startAcpChild(home: ContractHome): Promise<AcpChild> {
+export async function startAcpChild(home: ContractHome, options: AcpChildOptions = {}): Promise<AcpChild> {
 	const child = Bun.spawn({
-		cmd: [...ompCommand(), "acp", "--config", home.configPath, "--model", `${FAKE_PROVIDER}/${FAKE_MODEL}`],
+		cmd: [
+			...ompCommand(),
+			"acp",
+			"--config",
+			home.configPath,
+			"--model",
+			`${FAKE_PROVIDER}/${FAKE_MODEL}`,
+			...(options.args ?? []),
+		],
 		cwd: home.workspace,
-		env: home.env,
+		env: { ...home.env, ...options.env },
 		stdin: "pipe",
 		stdout: "pipe",
 		stderr: "pipe",
@@ -130,6 +146,19 @@ export function userMessageTexts(body: unknown): string[] {
 	if (!isRecord(body) || !Array.isArray(body.messages)) return [];
 	return body.messages.flatMap((message: unknown) => {
 		if (!isRecord(message) || message.role !== "user") return [];
+		if (typeof message.content === "string") return [message.content];
+		if (!Array.isArray(message.content)) return [];
+		return message.content.flatMap((part: unknown) =>
+			isRecord(part) && typeof part.text === "string" ? [part.text] : [],
+		);
+	});
+}
+
+/** The content of each tool result message in a chat completions request body, in order. */
+export function toolResultTexts(body: unknown): string[] {
+	if (!isRecord(body) || !Array.isArray(body.messages)) return [];
+	return body.messages.flatMap((message: unknown) => {
+		if (!isRecord(message) || message.role !== "tool") return [];
 		if (typeof message.content === "string") return [message.content];
 		if (!Array.isArray(message.content)) return [];
 		return message.content.flatMap((part: unknown) =>

@@ -27,6 +27,7 @@ import type { Theme } from "@oh-my-pi/pi-tui/theme";
 import { formatApprovalArguments } from "../tools/approval";
 import { ToolAbortError, throwIfAborted } from "../tools/tool-errors";
 import { schemaDeclaresIntentField } from "../utils/tool-schema";
+import { enforceMCPToolNameCollisionPolicy } from "../xsec/mcp-tool-collision";
 import { callTool } from "./client";
 import { formatMCPToolFailure, MCPTransportError } from "./errors";
 import { describeMCPCall, describeMCPResult, renderMCPCall, renderMCPResult } from "@oh-my-pi/pi-tui/tools/mcp";
@@ -732,6 +733,7 @@ export function deduplicateMCPToolsByName<T extends MCPToolOriginSource>(tools: 
 			existing.tool = tool;
 			existing.originKey = originKey;
 		}
+		enforceMCPToolNameCollisionPolicy({ name: tool.name, winner, loser });
 		logger.warn("MCP tool name collision; keeping stable winner", {
 			name: tool.name,
 			keptServer: winner.mcpServerName,

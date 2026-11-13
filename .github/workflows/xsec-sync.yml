@@ -1,0 +1,66 @@
+name: xsec sync
+
+# Keeps the fork in step with upstream: fast-forwards main to upstream's main,
+# and proposes each new upstream release as one pull request, sync/v<version>,
+# against xsec. A later run merges that pull request when scripts/xsec/sync-policy.ts
+# allows it. See "Sync with upstream" in scripts/xsec/README.md.
+#
+# This is the only job that uses OMP_SYNC_TOKEN, and only its two steps that need it see
+# it, so the checkout and setup actions never do. The workflow runs on a
+# schedule and by hand only, never for pull request events, so code from a pull
+# request never runs with the token. GitHub-hosted runners only: the repository
+# is public, and a self-hosted runner would run code from any fork.
+
+on:
+   schedule:
+      - cron: "17 4 * * *"
+   workflow_dispatch:
+      inputs:
+         dry_run:
+            description: "Plan and report only: push, open and merge nothing"
+            type: boolean
+            default: false
+
+concurrency:
+   group: xsec-sync
+   cancel-in-progress: false
+
+permissions: {}
+
+jobs:
+   sync:
+      name: Sync upstream
+      runs-on: ubuntu-24.04
+      timeout-minutes: 30
+      # Writes use OMP_SYNC_TOKEN. A push or a pull request made with the workflow's own
+      # token does not start CI, so the workflow's token only reads: the pull request,
+      # its checks and its commit status, and the code it fetches.
+      permissions:
+         contents: read
+         pull-requests: read
+         checks: read
+         statuses: read
+      env:
+         GITHUB_READ_TOKEN: ${{ github.token }}
+      steps:
+         - name: Require the sync token
+           env:
+              OMP_SYNC_TOKEN: ${{ secrets.OMP_SYNC_TOKEN }}
+           run: |
+              if [ -z "$OMP_SYNC_TOKEN" ]; then
+                echo "::error title=OMP_SYNC_TOKEN is not set::Add a fine-grained token for this repository as the secret OMP_SYNC_TOKEN, with read and write access to contents, pull requests and workflows."
+                exit 1
+              fi
+         - name: Check out with full history
+           uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+           with:
+              fetch-depth: 0
+              # sync.ts passes the token to git for each command that needs it.
+              persist-credentials: false
+         - name: Set up Bun
+           uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+         - name: Sync with upstream
+           env:
+              OMP_SYNC_TOKEN: ${{ secrets.OMP_SYNC_TOKEN }}
+              DRY_RUN: ${{ inputs.dry_run && '1' || '0' }}
+           run: bun scripts/xsec/sync.ts

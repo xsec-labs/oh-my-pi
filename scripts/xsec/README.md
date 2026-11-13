@@ -51,15 +51,69 @@ Sync pull requests (head branch `sync/*`, the name the sync workflow gives its b
 
 The judge reads the runner's report, so one limit remains: an error that a chunk prints without a test name is not visible when the same chunk also has a listed failure. A change to the list needs a fork pull request, a T-37 review, and evidence that the test also fails on unmodified upstream code. Everyday runs never read the list.
 
-Not run here: the Rust license check (`cargo-deny`), the bazel and native addon build jobs, the install method smoke tests (`ci:test:install-methods`), and the release jobs. The fork changes no Rust, and the rest need upstream's runners or publishing secrets.
+Not run here: the Rust license check (`cargo-deny`), the bazel and native addon build jobs, the install method smoke tests (`ci:test:install-methods`), and the release jobs, which `xsec-release.yml` runs instead (see Releases). The fork changes no Rust, and the rest need upstream's runners or publishing secrets.
 
 The fork never compiles the native addon. `fetch-natives.ts` installs every `.node` file of `@oh-my-pi/pi-natives-<tag>` at the version the checkout is based on, and checks the tarball against the registry's `sha512` integrity value. Upstream's own pull-request jobs take `@latest` instead; the fork pins the version so the addons match the checkout.
 
-CI uses GitHub-hosted runners only. Never attach a self-hosted runner to this repository: a pull request could run its code on it.
+CI and releases use GitHub-hosted runners only. Never attach a self-hosted runner to this repository: a pull request could run its code on it.
+
+## Releases
+
+`.github/workflows/xsec-release.yml` builds the binaries XSec Desktop ships. Pushing a tag `v<upstream>-xsec.<n>` publishes a GitHub Release in this repository. Push the tag only on a commit of `xsec` whose `xsec CI` run is green: the release workflow does not run the tests again.
+
+A manual run (`workflow_dispatch`) on any branch builds, smokes and checksums the same assets and publishes nothing. Its `omp-release-assets` artifact can be downloaded to check them.
+
+- `release_binary`: one job per target. Installs the target's prebuilt natives with `fetch-natives.ts`, builds with `bun run ci:release:build-binaries` (`RELEASE_TARGETS=<target>`), and signs the macOS binaries ad hoc with `scripts/ci-macos-sign.sh`.
+- `release_smoke`: runs each binary on its own platform with `--version` and `--smoke-test`. On macOS it also checks the code signature.
+- `release_assets`: writes `SHA256SUMS` and checks it against the binaries.
+- `publish` (tag pushes only): creates the release as a draft with the five assets, then publishes it. It uses the workflow's own token, with `contents: write` on this job only, and no secrets. If a release already exists for the tag, the job stops; delete that release before publishing the tag again.
+
+Release assets:
+
+| File | Binary |
+| --- | --- |
+| `omp-linux-x64` | Linux x64, `bun-linux-x64-baseline` |
+| `omp-darwin-arm64` | macOS arm64 |
+| `omp-darwin-x64` | macOS x64 |
+| `omp-windows-x64.exe` | Windows x64, `bun-windows-x64-baseline` |
+| `SHA256SUMS` | SHA-256 of the four binaries above |
+
+`SHA256SUMS` has one line per binary, sorted by file name: the 64 lowercase hex digits of the SHA-256, two spaces, the file name, and a newline. Check it with `sha256sum -c SHA256SUMS` on Linux, or `shasum -a 256 -c SHA256SUMS` on macOS. The file names carry no version; the release tag gives the fork version. Upstream's releases name their checksum file `SHA256SUMS.txt`; the fork's file has no extension.
+
+For XSec Desktop:
+
+- The tag is the fork version, for example `v18.20.0-xsec.1`. `omp --version` still prints the upstream version (`18.20.0`): the build takes no fork identifier, and adding one would change an upstream file. Desktop identifies a build by its tag and SHA-256, not by `--version`.
+- The release notes name the tag, the commit it was built from and the upstream version.
+- macOS binaries are signed ad hoc with the release entitlements. They are not Developer ID signed and not notarized. The Windows binary is not signed.
+- Each binary embeds the upstream native addon of its target, `@oh-my-pi/pi-natives-<target>` at the upstream version.
+- A release holds only the five files above: no npm packages, no browser relay archive, no `LICENSE`, and no musl or arm64 Linux or Windows binaries.
+
+## Sync with upstream
+
+`.github/workflows/xsec-sync.yml` runs `scripts/xsec/sync.ts` every day at 04:17 UTC and on `workflow_dispatch`. Its `dry_run` input plans and reports without pushing, opening or merging anything. Each run does these steps in order:
+
+1. Fast-forwards `main` to upstream's `main`. If `main` has commits upstream does not have, the run fails.
+2. Takes the newest upstream release tag `v<x.y.z>` that is newer than the version on `xsec`. Pre-release and fork tags are ignored, and versions compare by number, so 18.10.0 is newer than 18.9.0. At most one sync pull request is open: while `sync/v<version>` is open, a newer release waits until it merges.
+3. Opens `sync/v<version>` with one merge commit of that release into `xsec`, and a pull request against `xsec`. On a conflict nothing is pushed: the run fails, and its summary lists each conflicting file with the upstream commits that touched it. Adapt the fork's change on `xsec` so the release merges cleanly, then run the workflow again.
+4. Merges the pull request on a later run, with a merge commit, once all of these hold:
+   - it merges cleanly into the current `xsec`, and its head is exactly that merge: no commit of the fork's own, and no edit to the merged tree;
+   - it changes no file under `scripts/xsec/`, `packages/coding-agent/src/xsec/`, `packages/coding-agent/test/xsec/` or `.github/workflows/xsec-*.yml`, and no upstream workflow file (a new upstream workflow would start running in the fork);
+   - it has at least one check, every check on its head is completed and green (`success` or `skipped`), and the commit status is not pending or failed.
+
+   Anything else stays open for review. No check needs to be required in the repository settings: the run reads the check results itself. Auto-merge happens on a scheduled or manual run, so the merge can wait up to a day after the checks finish. A skipped check counts as green, so a job that its own `if:` skips on a sync pull request cannot hold it up. Any new `if:` on a job in `xsec-ci.yml` needs a T-37 review for that reason. A head with no check run at all also stays open, so a workflow that fails before any job starts holds the merge back.
+5. When `xsec` moves on while a sync pull request is open, the run rebuilds its branch on the new head, so the checks run on the merged result. It rebuilds only a branch that still holds the workflow's own merge. Any other content on a sync branch is left for a person.
+
+A sync pull request closed without merging is not reopened. Delete its branch to let a later run open a new one.
+
+**Token.** `OMP_SYNC_TOKEN` is a fine-grained personal access token for this repository only. It needs read and write access to **Contents** (pushes to `main` and the sync branches), **Pull requests** (opening, updating and merging the sync pull request) and **Workflows** (pushes that change a file under `.github/workflows/`). Metadata read comes with them. The run uses it for writes only: pushes, opening and updating the sync pull request, and merging. The workflow's own token cannot push a change to a workflow file, and a push or pull request made with it does not start CI, so it is never used for writes. The run reads with the workflow's own token, which the job grants read access to contents, pull requests, checks and commit statuses. When GitHub refuses a write for lack of a permission, the run fails and its error names the permission to add. A merge that GitHub refuses with 405 or 409 is not a failure: the pull request stays open for a later run. Only the two steps that use the token see it, the presence check and the sync itself. The checkout and the setup actions never do. It reaches git and the API per command and is never stored in `.git/config`. Never print it or commit it.
+
+**Runners.** GitHub-hosted only. The merge uses `git merge-tree --write-tree`, which needs git 2.38 or newer; `ubuntu-24.04` ships a newer git.
 
 ## Known gaps in model discovery
 
 `models.discovery: configured` limits the discovery that `ModelRegistry` starts. Three paths sit outside that limit. Each one lists the condition under which it sends a request. The package 7 probe on the built binary decides whether one of them needs a fix before package 2.
+
+A registry built without settings follows the process's global settings. With none loaded, `all` applies, and that fallback is logged once.
 
 - **LiteLLM usage.** The usage provider for `litellm`, and for every `discovery.type: litellm` provider, is registered whatever `models.discovery` says. It requests `<base URL>/v2/user/info`, and `<base URL>/key/info` for keys that start with `sk-`, only when usage is read for a LiteLLM API key. The base URL is the provider's configured one, or the built-in default for `litellm`. This is usage reporting, not model discovery. The phase 0 probe saw no LiteLLM host at session start.
 - **Extension dynamic managers.** A provider that an extension registers with `fetchDynamicModels` runs its own function on every discovery pass, session start included. The limit does not filter these managers, and the guard does not see the function's requests. Desktop's extensions register no such provider today.

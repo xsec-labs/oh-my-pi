@@ -4,10 +4,10 @@
  *
  * Everything the fork adds lives under the path prefixes in `OWNED_PREFIXES`,
  * which upstream does not use. An upstream file may be modified only when it is
- * listed in `upstream-allowlist.txt` with a line budget, so widening the
- * footprint is always an explicit, reviewable edit of that list. Some changes
- * are never allowed, listed or not: upstream CHANGELOG and workflow files, and
- * the version of any package.
+ * listed in `upstream-allowlist.txt` with a line budget and the upstream test
+ * paths that cover it, so widening the footprint is always an explicit,
+ * reviewable edit of that list. Some changes are never allowed, listed or not:
+ * upstream CHANGELOG and workflow files, and the version of any package.
  *
  * Usage: bun scripts/xsec/check-upstream-diff.ts
  * `XSEC_UPSTREAM_REF` names an already-fetched base commit; without it the
@@ -29,6 +29,8 @@ export interface AllowlistEntry {
 	path: string;
 	/** Most lines (added plus removed) the fork may change in this file. */
 	budget: number;
+	/** Upstream test files, or globs, that exercise the code around the fork's call lines. */
+	testPaths: string[];
 }
 
 export interface FileChange {
@@ -58,23 +60,27 @@ export function isForbiddenUpstreamPath(filePath: string): boolean {
 	return path.posix.basename(filePath) === "CHANGELOG.md" || filePath.startsWith(".github/workflows/");
 }
 
-/** Parses `upstream-allowlist.txt`: one `<path> <budget>` per line, `#` comments. */
+/**
+ * Parses `upstream-allowlist.txt`: one `<path> <line budget> <test path or glob>...`
+ * per line, `#` comments. Every entry names at least one test path.
+ */
 export function parseAllowlist(text: string): AllowlistEntry[] {
 	const entries: AllowlistEntry[] = [];
 	const seen = new Set<string>();
 	for (const [index, rawLine] of text.split("\n").entries()) {
 		const line = rawLine.replace(/#.*$/, "").trim();
 		if (!line) continue;
-		const match = /^(\S+)\s+(\d+)$/.exec(line);
-		if (!match) {
-			throw new Error(`upstream-allowlist.txt line ${index + 1}: expected "<path> <line budget>", got "${rawLine}"`);
+		const [filePath, budget, ...testPaths] = line.split(/\s+/);
+		if (testPaths.length === 0 || !/^\d+$/.test(budget)) {
+			throw new Error(
+				`upstream-allowlist.txt line ${index + 1}: expected "<path> <line budget> <test path or glob>...", got "${rawLine}"`,
+			);
 		}
-		const [, filePath, budget] = match;
 		if (seen.has(filePath)) {
 			throw new Error(`upstream-allowlist.txt line ${index + 1}: ${filePath} is listed twice`);
 		}
 		seen.add(filePath);
-		entries.push({ path: filePath, budget: Number(budget) });
+		entries.push({ path: filePath, budget: Number(budget), testPaths });
 	}
 	return entries;
 }
@@ -154,6 +160,57 @@ export function findScopeViolations(
 	return violations;
 }
 
+/** Whether a test path, a literal path or a glob, names this repository file. */
+export function matchesTestPath(testPath: string, filePath: string): boolean {
+	return new Bun.Glob(testPath).match(filePath);
+}
+
+/**
+ * Returns one message per test path that matches no tracked file, and per
+ * matched file that is not a `*.test.ts` file: CI runs what the paths name.
+ */
+export function findTestPathViolations(allowlist: readonly AllowlistEntry[], repoFiles: readonly string[]): string[] {
+	const violations: string[] = [];
+	for (const entry of allowlist) {
+		for (const testPath of entry.testPaths) {
+			const matches = repoFiles.filter(filePath => matchesTestPath(testPath, filePath));
+			if (matches.length === 0) {
+				violations.push(`${entry.path} lists test path ${testPath}, which matches no file`);
+			}
+			for (const match of matches) {
+				if (!match.endsWith(".test.ts")) {
+					violations.push(
+						`${entry.path} lists test path ${testPath}, which matches ${match}, not a *.test.ts file`,
+					);
+				}
+			}
+		}
+	}
+	return violations;
+}
+
+/** Every tracked `*.test.ts` file the allowlist's test paths name, sorted, each once. */
+export function listTestPaths(allowlist: readonly AllowlistEntry[], repoFiles: readonly string[]): string[] {
+	const listed = new Set<string>();
+	for (const entry of allowlist) {
+		for (const testPath of entry.testPaths) {
+			for (const filePath of repoFiles) {
+				if (filePath.endsWith(".test.ts") && matchesTestPath(testPath, filePath)) listed.add(filePath);
+			}
+		}
+	}
+	return [...listed].sort();
+}
+
+/**
+ * The package directory a repository file belongs to, and the file's path inside
+ * it. Upstream runs each package's tests from that directory, so the CI does too.
+ */
+export function splitPackagePath(filePath: string): { dir: string; file: string } {
+	const match = /^(packages\/[^/]+)\/(.+)$/.exec(filePath);
+	return match ? { dir: match[1], file: match[2] } : { dir: ".", file: filePath };
+}
+
 function versionOf(manifest: string, filePath: string): unknown {
 	try {
 		return (JSON.parse(manifest) as { version?: unknown }).version;
@@ -196,6 +253,7 @@ async function main(): Promise<void> {
 	const nameStatus = await $`git diff --name-status ${diffArgs}`.cwd(repoRoot).text();
 	const numstat = await $`git diff --numstat ${diffArgs}`.cwd(repoRoot).text();
 	const upstreamPaths = (await $`git ls-tree -r --name-only -z ${base}`.cwd(repoRoot).text()).split("\0");
+	const repoFiles = (await $`git ls-files -z`.cwd(repoRoot).text()).split("\0").filter(Boolean);
 	const changes = parseChanges(nameStatus, numstat);
 
 	const manifestEdits: ManifestEdit[] = [];
@@ -208,7 +266,11 @@ async function main(): Promise<void> {
 			after: await $`git show HEAD:${change.path}`.cwd(repoRoot).text(),
 		});
 	}
-	const violations = [...findScopeViolations(changes, allowlist, upstreamPaths), ...findVersionEdits(manifestEdits)];
+	const violations = [
+		...findScopeViolations(changes, allowlist, upstreamPaths),
+		...findTestPathViolations(allowlist, repoFiles),
+		...findVersionEdits(manifestEdits),
+	];
 
 	const upstreamTouched = changes.filter(change => !isOwnedPath(change.path));
 	console.log(`Base ${base}: ${changes.length} changed file(s), ${upstreamTouched.length} of them upstream files.`);

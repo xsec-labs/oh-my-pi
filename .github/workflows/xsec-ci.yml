@@ -81,11 +81,16 @@ jobs:
          fail-fast: false
          matrix:
             # One entry per upstream test_* pull-request job, with upstream's
-            # script, shard, concurrency and timeout (minutes).
+            # script, shard, concurrency and timeout (minutes). The native
+            # shards are the exception: see the comment above them.
             include:
-               - { name: "coding-agent native 1/3", script: "ci:test:coding-agent:native", shard: "1/3", concurrency: "4", timeout: 25 }
-               - { name: "coding-agent native 2/3", script: "ci:test:coding-agent:native", shard: "2/3", concurrency: "4", timeout: 25 }
-               - { name: "coding-agent native 3/3", script: "ci:test:coding-agent:native", shard: "3/3", concurrency: "4", timeout: 25 }
+               # The native shards run at concurrency 2, not upstream's 4. Upstream's
+               # test browser-relay-detach races a 750 ms wall-clock GRACE_MS
+               # window and failed intermittently at 4. The test still runs and
+               # must pass; it is neither skipped nor quarantined.
+               - { name: "coding-agent native 1/3", script: "ci:test:coding-agent:native", shard: "1/3", concurrency: "2", timeout: 25 }
+               - { name: "coding-agent native 2/3", script: "ci:test:coding-agent:native", shard: "2/3", concurrency: "2", timeout: 25 }
+               - { name: "coding-agent native 3/3", script: "ci:test:coding-agent:native", shard: "3/3", concurrency: "2", timeout: 25 }
                - { name: "coding-agent runtime", script: "ci:test:coding-agent:runtime", concurrency: "4", timeout: 25 }
                - { name: "coding-agent ui", script: "ci:test:coding-agent:ui", concurrency: "2", timeout: 25 }
                - { name: "coding-agent singleton", script: "ci:test:coding-agent:singleton", timeout: 20 }

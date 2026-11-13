@@ -76,6 +76,71 @@ describe("working directory masking with secrets enabled", () => {
 	});
 });
 
+/** The text of the sub-agent's task. The fake model holds the sub-agent's request on it, so the test can read that request. */
+const SUBAGENT_TEXT = "sub-agent probe for the masking contract";
+
+/**
+ * One session that starts one sub-agent. The sub-agent's request is held open, so it stays in the captured bodies while
+ * the test reads them. `secretsYaml` undefined runs the session with secrets disabled.
+ */
+async function runSubagentSession(secretsYaml: string | undefined) {
+	const home = await contract.home({ secretsEnabled: secretsYaml !== undefined, workerThreads: 0 });
+	if (secretsYaml !== undefined)
+		fs.writeFileSync(path.join(home.env.PI_CODING_AGENT_DIR!, "secrets.yml"), secretsYaml);
+	const projectDir = path.join(home.base, "clients", CLIENT_FOLDER, "project");
+	fs.mkdirSync(projectDir, { recursive: true });
+	fs.writeFileSync(path.join(projectDir, "AGENTS.md"), "# Project notes\n\nReply briefly.\n");
+	const child = await contract.child(home);
+	await child.connection.initialize({ protocolVersion: 1, clientCapabilities: {} });
+	const { sessionId } = await child.connection.newSession({ cwd: projectDir, mcpServers: [] });
+
+	home.model.enqueue({ content: ["noted"] });
+	await child.connection.prompt({ sessionId, prompt: [{ type: "text", text: "remember the project" }] });
+
+	// The batch runs in the background, so the turn that starts it ends before the sub-agent sends anything.
+	home.model.route(SUBAGENT_TEXT, { content: [], hold: true });
+	home.model.enqueue({
+		content: [],
+		toolCall: {
+			name: "task",
+			arguments: JSON.stringify({
+				context: "contract test: the run answers in one sentence",
+				tasks: [{ name: "probe", task: SUBAGENT_TEXT, solutionSpace: "one short sentence" }],
+			}),
+		},
+	});
+	home.model.enqueue({ content: ["the sub-agent is started"] });
+	await child.connection.prompt({ sessionId, prompt: [{ type: "text", text: "run the sub-agent" }] });
+	await home.model.waitForUserText(SUBAGENT_TEXT, 1);
+
+	const index = home.model.requests.findIndex(body =>
+		userMessageTexts(body).some(text => text.includes(SUBAGENT_TEXT)),
+	);
+	if (index < 0) throw new Error("the sub-agent sent no request");
+	return { home, index };
+}
+
+describe("working directory masking in a sub-agent request", () => {
+	it("keeps a plain entry matching the folder name out of every request body, the sub-agent's included", async () => {
+		const run = await runSubagentSession(`- type: plain\n  content: ${CLIENT_FOLDER}\n  friendlyName: client\n`);
+
+		expect(requestsCarrying(run.home, CLIENT_FOLDER)).toEqual([]);
+	});
+
+	it("keeps a regex entry matching part of the folder name out of every request body, the sub-agent's included", async () => {
+		const run = await runSubagentSession(`- type: regex\n  content: "Tessel-[A-Za-z]+"\n  friendlyName: client\n`);
+
+		expect(requestsCarrying(run.home, "Tessel-Harbor")).toEqual([]);
+	});
+
+	it("control: with secrets disabled, the sub-agent's request carries the folder name", async () => {
+		const run = await runSubagentSession(undefined);
+
+		// The cases above only test masking if the sub-agent's request carries the folder name when nothing is masked.
+		expect(requestsCarrying(run.home, CLIENT_FOLDER)).toContain(run.index);
+	});
+});
+
 describe("working directory with secrets disabled", () => {
 	it("sends the real working directory, as before", async () => {
 		const home = await contract.home({ secretsEnabled: false });

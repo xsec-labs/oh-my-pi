@@ -1,5 +1,9 @@
+import * as fs from "node:fs/promises";
+import * as os from "node:os";
+import * as path from "node:path";
 import { describe, expect, test } from "bun:test";
-import { decideRelease, listXsecCiRuns, type WorkflowRun } from "./check-release-tag";
+import { checkReleaseCommit, decideRelease, listXsecCiRuns, type WorkflowRun } from "./check-release-tag";
+import { gitText } from "./sync-git";
 
 const SHA = "0025b03e600228bd5cb487b507c6bb7f9fa280be";
 const OTHER_SHA = "30dd9255cb1e1887ff307ea0baa6a99f23a8a83a";
@@ -103,6 +107,85 @@ describe("listXsecCiRuns", () => {
 			await expect(listing).rejects.toThrow("HTTP 403");
 		} finally {
 			server.stop(true);
+		}
+	});
+});
+
+describe("checkReleaseCommit", () => {
+	/**
+	 * A clone whose origin/xsec is its first commit. The second commit sits on a
+	 * branch of its own, so xsec does not contain it.
+	 */
+	async function cloneWithCommits(): Promise<{ repo: string; onXsec: string; offXsec: string }> {
+		const repo = await fs.mkdtemp(path.join(os.tmpdir(), "xsec-release-tag-"));
+		const git = (args: string[]) => gitText(args, { cwd: repo });
+		const commit = (message: string) =>
+			git([
+				"-c",
+				"user.name=test",
+				"-c",
+				"user.email=test@example.com",
+				"commit",
+				"-q",
+				"--allow-empty",
+				"-m",
+				message,
+			]);
+		await git(["init", "-q"]);
+		await commit("on xsec");
+		const onXsec = (await git(["rev-parse", "HEAD"])).trim();
+		await git(["update-ref", "refs/remotes/origin/xsec", onXsec]);
+		await git(["checkout", "-q", "-b", "feature"]);
+		await commit("not on xsec");
+		const offXsec = (await git(["rev-parse", "HEAD"])).trim();
+		return { repo, onXsec, offXsec };
+	}
+
+	/** Answers every runs query with a green push run for the commit it asks about. */
+	function serveGreenRuns() {
+		return Bun.serve({
+			port: 0,
+			fetch(request) {
+				const headSha = new URL(request.url).searchParams.get("head_sha") ?? "";
+				return Response.json({ total_count: 1, workflow_runs: [run({ head_sha: headSha })] });
+			},
+		});
+	}
+
+	test("allows a commit that xsec contains when its push run succeeded", async () => {
+		const { repo, onXsec } = await cloneWithCommits();
+		const server = serveGreenRuns();
+		try {
+			const decision = await checkReleaseCommit({
+				commit: onXsec,
+				cwd: repo,
+				apiUrl: server.url.origin,
+				repository: "xsec-labs/oh-my-pi",
+				token: "test-token",
+			});
+			expect(decision.ok).toBe(true);
+		} finally {
+			server.stop(true);
+			await fs.rm(repo, { recursive: true, force: true });
+		}
+	});
+
+	test("refuses a green commit that xsec does not contain", async () => {
+		const { repo, offXsec } = await cloneWithCommits();
+		const server = serveGreenRuns();
+		try {
+			const decision = await checkReleaseCommit({
+				commit: offXsec,
+				cwd: repo,
+				apiUrl: server.url.origin,
+				repository: "xsec-labs/oh-my-pi",
+				token: "test-token",
+			});
+			expect(decision.ok).toBe(false);
+			expect(decision.reason).toContain("not reachable from origin/xsec");
+		} finally {
+			server.stop(true);
+			await fs.rm(repo, { recursive: true, force: true });
 		}
 	});
 });

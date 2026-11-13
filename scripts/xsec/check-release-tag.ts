@@ -108,20 +108,42 @@ function requireEnv(name: string): string {
 	return value;
 }
 
-async function main(): Promise<void> {
-	const requested = Bun.argv[2];
-	if (!requested) throw new Error("Usage: bun scripts/xsec/check-release-tag.ts <commit>");
-	const sha = await resolveCommit(requested);
-	if (!sha) throw new Error(`${requested} is not a commit of this clone`);
-	const xsecTip = await resolveCommit(`origin/${XSEC_BRANCH}`);
+export interface ReleaseCheck {
+	/** The commit a tag names, or any ref that resolves to one. */
+	commit: string;
+	/** The clone to check in. The repository root by default. */
+	cwd?: string;
+	apiUrl: string;
+	repository: string;
+	token: string;
+}
+
+/**
+ * Checks one commit: it must be reachable from origin/xsec, and the newest xsec CI
+ * push run on it must have succeeded. A commit xsec does not contain is refused
+ * without listing its runs.
+ */
+export async function checkReleaseCommit(check: ReleaseCheck): Promise<ReleaseDecision> {
+	const sha = await resolveCommit(check.commit, check.cwd);
+	if (!sha) throw new Error(`${check.commit} is not a commit of this clone`);
+	const xsecTip = await resolveCommit(`origin/${XSEC_BRANCH}`, check.cwd);
 	if (!xsecTip) throw new Error(`origin/${XSEC_BRANCH} is not fetched`);
-	const runs = await listXsecCiRuns({
+	const reachableFromXsec = await isAncestor(sha, xsecTip, check.cwd);
+	const runs = reachableFromXsec
+		? await listXsecCiRuns({ apiUrl: check.apiUrl, repository: check.repository, token: check.token, sha })
+		: [];
+	return decideRelease({ sha, reachableFromXsec, runs });
+}
+
+async function main(): Promise<void> {
+	const commit = Bun.argv[2];
+	if (!commit) throw new Error("Usage: bun scripts/xsec/check-release-tag.ts <commit>");
+	const decision = await checkReleaseCommit({
+		commit,
 		apiUrl: Bun.env.GITHUB_API_URL || "https://api.github.com",
 		repository: requireEnv("GITHUB_REPOSITORY"),
 		token: requireEnv("GITHUB_TOKEN"),
-		sha,
 	});
-	const decision = decideRelease({ sha, reachableFromXsec: await isAncestor(sha, xsecTip), runs });
 	if (!decision.ok) {
 		console.error(`::error title=Release refused::${decision.reason}`);
 		process.exit(1);

@@ -47,6 +47,27 @@ The fork never compiles the native addon. `fetch-natives.ts` installs every `.no
 
 CI uses GitHub-hosted runners only. Never attach a self-hosted runner to this repository: a pull request could run its code on it.
 
+## Sync with upstream
+
+`.github/workflows/xsec-sync.yml` runs `scripts/xsec/sync.ts` every day at 04:17 UTC and on `workflow_dispatch`. Its `dry_run` input plans and reports without pushing, opening or merging anything. Each run does these steps in order:
+
+1. Fast-forwards `main` to upstream's `main`. If `main` has commits upstream does not have, the run fails.
+2. Takes the newest upstream release tag `v<x.y.z>` that is newer than the version on `xsec`. Pre-release and fork tags are ignored, and versions compare by number, so 18.10.0 is newer than 18.9.0. At most one sync pull request is open: while `sync/v<version>` is open, a newer release waits until it merges.
+3. Opens `sync/v<version>` with one merge commit of that release into `xsec`, and a pull request against `xsec`. On a conflict nothing is pushed: the run fails, and its summary lists each conflicting file with the upstream commits that touched it. Adapt the fork's change on `xsec` so the release merges cleanly, then run the workflow again.
+4. Merges the pull request on a later run, with a merge commit, once all of these hold:
+   - it merges cleanly into the current `xsec`, and its head is exactly that merge: no commit of the fork's own, and no edit to the merged tree;
+   - it changes no file under `scripts/xsec/`, `packages/coding-agent/src/xsec/`, `packages/coding-agent/test/xsec/` or `.github/workflows/xsec-*.yml`, and no upstream workflow file (a new upstream workflow would start running in the fork);
+   - it has at least one check, every check on its head is completed and green (`success` or `skipped`), and the commit status is not pending or failed.
+
+   Anything else stays open for review. No check needs to be required in the repository settings: the run reads the check results itself. Auto-merge happens on a scheduled or manual run, so the merge can wait up to a day after the checks finish.
+5. When `xsec` moves on while a sync pull request is open, the run rebuilds its branch on the new head, so the checks run on the merged result. It rebuilds only a branch that still holds the workflow's own merge. Any other content on a sync branch is left for a person.
+
+A sync pull request closed without merging is not reopened. Delete its branch to let a later run open a new one.
+
+**Token.** `OMP_SYNC_TOKEN` is a fine-grained token for this repository with read and write access to contents, pull requests and workflows, and read access to checks and commit statuses: the run reads the check results on a pull request's head before it merges. The workflow's own token cannot push a change to a workflow file, and a pull request opened with it does not start CI. Only the sync job references the token. It reaches git and the API per command and is never stored in `.git/config`. Never print it or commit it.
+
+**Runners.** GitHub-hosted only. The merge uses `git merge-tree --write-tree`, which needs git 2.38 or newer; `ubuntu-24.04` ships a newer git.
+
 ## Working locally
 
 ```sh

@@ -6,3 +6,5 @@
 # Keep entries to call lines only: the implementation belongs under
 # packages/coding-agent/src/xsec/. Remove an entry once upstream has taken the
 # change.
+packages/coding-agent/src/config/all-settings.ts 2
+packages/coding-agent/src/config/model-registry.ts 18

@@ -46,6 +46,16 @@ import {
 /** A failure that stops the run. Its message goes to the log and the step summary. */
 class SyncError extends Error {}
 
+/** A request that GitHub answered with an error status. */
+class HttpError extends SyncError {
+	readonly status: number;
+
+	constructor(status: number, message: string) {
+		super(message);
+		this.status = status;
+	}
+}
+
 const PACKAGE_MANIFEST = "packages/coding-agent/package.json";
 const UPSTREAM_TAG_PREFIX = "refs/upstream-tags/";
 const UPSTREAM_MAIN_REF = "refs/remotes/upstream/main";
@@ -108,7 +118,26 @@ interface CombinedStatus {
 	total_count: number;
 }
 
-class GitHubApi {
+type ApiMethod = "GET" | "POST" | "PUT";
+
+/**
+ * What to check when GitHub refuses a request for lack of permission. A refused read points at the
+ * job's own permissions, a refused write at the sync token's.
+ */
+function permissionHint(method: ApiMethod, status: number): string {
+	if (method === "GET") {
+		return status === 403
+			? " The workflow's own token may lack a read permission: the job declares read access to contents, pull requests, checks and statuses."
+			: "";
+	}
+	if (status === 401) return " OMP_SYNC_TOKEN was rejected: it may have expired or been revoked.";
+	if (status === 403) {
+		return ' OMP_SYNC_TOKEN may lack a permission this request needs: it needs Contents, Pull requests and Workflows, with read and write, on this repository (see "Sync with upstream" in scripts/xsec/README.md).';
+	}
+	return "";
+}
+
+export class GitHubApi {
 	readonly #apiUrl: string;
 	readonly #readToken: string;
 	readonly #writeToken: string;
@@ -125,7 +154,7 @@ class GitHubApi {
 	}
 
 	async request<T>(
-		method: "GET" | "POST" | "PUT",
+		method: ApiMethod,
 		route: string,
 		options: { query?: Record<string, string>; body?: unknown } = {},
 	): Promise<T> {
@@ -145,7 +174,10 @@ class GitHubApi {
 		const response = await fetch(url, init);
 		if (!response.ok) {
 			const detail = (await response.text()).slice(0, 300);
-			throw new SyncError(`GitHub ${method} ${route} failed: HTTP ${response.status} ${detail}`);
+			throw new HttpError(
+				response.status,
+				`GitHub ${method} ${route} failed: HTTP ${response.status} ${detail}${permissionHint(method, response.status)}`,
+			);
 		}
 		return (await response.json()) as T;
 	}
@@ -390,8 +422,20 @@ async function keepSyncPull(ctx: RunContext, listed: PullSummary): Promise<void>
 			body: { merge_method: "merge", sha: detail.head.sha },
 		});
 	} catch (error) {
+		if (!isMergeRefusal(error)) throw error;
 		report(`GitHub refused the merge, so #${detail.number} stays open: ${errorText(error)}`);
 	}
+}
+
+/** The statuses GitHub answers a merge with when it refuses it: 405 not mergeable, 409 head moved. */
+const MERGE_REFUSALS: ReadonlySet<number> = new Set([405, 409]);
+
+/**
+ * True when GitHub refused the merge itself, so the pull request stays open for a later run. Any
+ * other failure, such as a 403 for a token without the permission to merge, stops the run.
+ */
+export function isMergeRefusal(error: unknown): boolean {
+	return error instanceof HttpError && MERGE_REFUSALS.has(error.status);
 }
 
 function errorText(error: unknown): string {

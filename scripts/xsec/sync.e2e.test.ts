@@ -45,6 +45,8 @@ class FakeGitHub {
 	checkRuns: FakeCheckRun[] = [];
 	statusState = "pending";
 	statusCount = 0;
+	/** When set, the next merge is refused with this status and message instead of merging. */
+	mergeRefusal: { status: number; message: string } | null = null;
 	readonly #origin: string;
 	#server: Bun.Server<undefined> | null = null;
 
@@ -128,6 +130,7 @@ class FakeGitHub {
 	}
 
 	async #merge(pull: FakePull, body: { sha: string }): Promise<Response> {
+		if (this.mergeRefusal) return this.json({ message: this.mergeRefusal.message }, this.mergeRefusal.status);
 		const head = await this.#sha(pull.head.ref);
 		if (body.sha !== head) return this.json({ message: "head moved" }, 409);
 		// Stands in for GitHub's merge: xsec gets a merge commit whose tree is the head's.
@@ -347,6 +350,25 @@ describe("sync.ts against a fork and a fake GitHub", () => {
 		expect(run.exitCode).toBe(0);
 		expect(await sha("main", origin)).toBe(upstreamV2111);
 		expect(api.pulls.at(-1)).toMatchObject({ number: 2, state: "open", head: { ref: "sync/v18.21.1" } });
+	});
+
+	it("keeps the pull request open when GitHub refuses the merge as not mergeable", async () => {
+		api.mergeRefusal = { status: 405, message: "Pull Request is not mergeable" };
+		const run = await runSync({});
+		api.mergeRefusal = null;
+		expect(run.exitCode).toBe(0);
+		expect(run.stdout).toContain("GitHub refused the merge, so #2 stays open");
+		expect(api.pulls[1]?.state).toBe("open");
+	});
+
+	it("fails the run, naming the permission to add, when GitHub refuses the merge with 403", async () => {
+		api.mergeRefusal = { status: 403, message: "Resource not accessible by personal access token" };
+		const run = await runSync({});
+		api.mergeRefusal = null;
+		expect(run.exitCode).toBe(1);
+		expect(run.stderr).toContain("OMP_SYNC_TOKEN may lack a permission this request needs");
+		expect(run.summary).toContain("**Sync failed:**");
+		expect(api.pulls[1]?.state).toBe("open");
 	});
 
 	it("rebuilds an open sync branch on the new xsec head when a fork change lands meanwhile", async () => {

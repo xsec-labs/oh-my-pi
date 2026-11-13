@@ -3,6 +3,7 @@ import {
 	type AutoMergeFacts,
 	decideAutoMerge,
 	isPristineUpstreamMerge,
+	KNOWN_UPSTREAM_FAILURE_CHECK,
 	pickNewerRelease,
 	planSync,
 	type SyncHeadFacts,
@@ -169,6 +170,30 @@ describe("the auto-merge condition", () => {
 		};
 		expect(decideAutoMerge(failed).reasons).toEqual(["check Test native 1/3 concluded failure"]);
 		expect(decideAutoMerge(cancelled).reasons).toEqual(["check Test native 2/3 concluded cancelled"]);
+	});
+
+	it("names the known upstream failure when it is the red check, and keeps the pull request open", () => {
+		// A red check always blocks. The name only tells the reader which failure it is.
+		const known = {
+			...cleanFacts(),
+			checkRuns: [
+				{ name: "Fork scope", status: "completed", conclusion: "success" },
+				{ name: KNOWN_UPSTREAM_FAILURE_CHECK, status: "completed", conclusion: "failure" },
+			],
+		};
+		const decision = decideAutoMerge(known);
+		expect(decision.merge).toBe(false);
+		expect(decision.reasons).toHaveLength(1);
+		expect(decision.reasons[0]).toContain("known upstream failure");
+	});
+
+	it("does not call a cancelled known check a known failure", () => {
+		// A cancelled run says nothing about upstream's test, so the reason stays the plain one.
+		const cancelled = {
+			...cleanFacts(),
+			checkRuns: [{ name: KNOWN_UPSTREAM_FAILURE_CHECK, status: "completed", conclusion: "cancelled" }],
+		};
+		expect(decideAutoMerge(cancelled).reasons).toEqual([`check ${KNOWN_UPSTREAM_FAILURE_CHECK} concluded cancelled`]);
 	});
 
 	it("keeps a pull request that no check has run on", () => {

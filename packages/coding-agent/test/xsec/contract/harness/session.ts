@@ -63,7 +63,10 @@ function withDiagnostics(error: unknown, homes: readonly ContractHome[], childre
 	return new Error(`${String(error)}\n\n${report}`, { cause: error });
 }
 
-/** Each omp child's stderr, then the tail of each log under each home. It never throws, so a failure stays a failure. */
+/**
+ * Each omp child's stderr, then the tail of each log under each home. It never throws, so a failure stays a failure.
+ * The report lands in the CI logs of a public fork, so contract fixtures use only synthetic values.
+ */
 function failureReport(homes: readonly ContractHome[], children: readonly AcpChild[]): string {
 	const sections: string[] = ["=== contract failure diagnostics ==="];
 	if (children.length === 0) sections.push("--- this test started no omp child ---");

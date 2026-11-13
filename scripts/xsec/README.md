@@ -59,14 +59,17 @@ CI and releases use GitHub-hosted runners only. Never attach a self-hosted runne
 
 ## Releases
 
-`.github/workflows/xsec-release.yml` builds the binaries XSec Desktop ships. Pushing a tag `v<upstream>-xsec.<n>` publishes a GitHub Release in this repository. Push the tag only on a commit of `xsec` whose `xsec CI` run is green: the release workflow does not run the tests again.
+`.github/workflows/xsec-release.yml` builds the binaries XSec Desktop ships. Pushing a tag `v<upstream>-xsec.<n>` publishes a GitHub Release in this repository, once `tag_guard` has checked the tagged commit. Push a release tag only on a commit of `xsec` whose `xsec CI` push run is green. The release workflow does not run the tests again, and `tag_guard` checks the CI run, not the tests themselves.
 
-A manual run (`workflow_dispatch`) on any branch builds, smokes and checksums the same assets and publishes nothing. Its `omp-release-assets` artifact can be downloaded to check them.
+**Tag ruleset.** The repository has a tag ruleset, `xsec-release-tags`, for `v*-xsec.*`. It restricts creating, updating and deleting matching tags and blocks force pushes. Its bypass list names `tzf1003` and `xsec-labs`, so only they can push a release tag. A ruleset cannot check a tag's branch or its CI run, so `tag_guard` does. Both run from the tagged commit, so a tag on a commit that changes the workflow or the script could skip the guard. The ruleset is what keeps anyone else from pushing such a tag.
 
+A manual run (`workflow_dispatch`) on any branch builds, smokes and checksums the same assets and publishes nothing. Its `omp-release-assets` artifact can be downloaded to check them. `tag_guard` runs on a manual run too, against the commit the run started on, so a run from a branch other than `xsec` shows that job as failed, as a tag there would.
+
+- `tag_guard`: runs `scripts/xsec/check-release-tag.ts` on the commit. It fetches `xsec`, requires the commit to be reachable from it, and requires the newest `xsec CI` push run on the commit to be completed and successful. The job reads only: its token needs `actions: read` to list the runs. `publish` waits for it.
 - `release_binary`: one job per target. Installs the target's prebuilt natives with `fetch-natives.ts`, builds with `bun run ci:release:build-binaries` (`RELEASE_TARGETS=<target>`), and signs the macOS binaries ad hoc with `scripts/ci-macos-sign.sh`.
 - `release_smoke`: runs each binary on its own platform with `--version` and `--smoke-test`. On macOS it also checks the code signature.
 - `release_assets`: writes `SHA256SUMS` and checks it against the binaries.
-- `publish` (tag pushes only): creates the release as a draft with the five assets, then publishes it. It uses the workflow's own token, with `contents: write` on this job only, and no secrets. If a release already exists for the tag, the job stops; delete that release before publishing the tag again.
+- `publish` (tag pushes only): starts after `release_assets` and `tag_guard` pass. It creates the release as a draft with the five assets, then publishes it. It uses the workflow's own token, with `contents: write` on this job only, and no secrets. If a release already exists for the tag, the job stops; delete that release before publishing the tag again.
 
 Release assets:
 

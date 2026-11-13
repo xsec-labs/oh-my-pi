@@ -1,0 +1,184 @@
+name: xsec release
+
+# Builds, smokes and publishes the fork's single-file omp binaries. See
+# "Releases" in scripts/xsec/README.md for the assets and the checksum format.
+#
+# A tag push (v<upstream>-xsec.<n>) publishes a GitHub Release in this
+# repository. A manual run builds, smokes and checksums the same assets and
+# stops there: only the publish job is limited to tag pushes.
+#
+# GitHub-hosted runners only, and no secrets: macOS binaries are signed ad hoc
+# by scripts/ci-macos-sign.sh. Never attach a self-hosted runner to this
+# repository: it is public, and a pull request could run its code on it.
+
+on:
+   push:
+      tags: ["v*-xsec.*"]
+   workflow_dispatch:
+
+concurrency:
+   group: "xsec-release-${{ github.ref }}"
+   cancel-in-progress: false
+
+permissions:
+   contents: read
+
+env:
+   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+   release_binary:
+      name: "Release binary: ${{ matrix.target_id }}"
+      runs-on: ubuntu-22.04
+      timeout-minutes: 45
+      strategy:
+         fail-fast: false
+         matrix:
+            # Each binary is cross-built on Linux when needed, with upstream's
+            # prebuilt natives for the same target (scripts/xsec/fetch-natives.ts).
+            include:
+               - { target_id: linux-x64, binary_path: packages/coding-agent/binaries/omp-linux-x64 }
+               - { target_id: darwin-arm64, binary_path: packages/coding-agent/binaries/omp-darwin-arm64 }
+               - { target_id: darwin-x64, binary_path: packages/coding-agent/binaries/omp-darwin-x64 }
+               - { target_id: win32-x64, binary_path: packages/coding-agent/binaries/omp-windows-x64.exe }
+      steps:
+         - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+           with:
+              persist-credentials: false
+         - uses: ./.github/actions/bun-install
+         - name: Install prebuilt native addon
+           run: bun scripts/xsec/fetch-natives.ts ${{ matrix.target_id }}
+         - name: Build release binary
+           env:
+              RELEASE_TARGETS: ${{ matrix.target_id }}
+           run: bun run ci:release:build-binaries
+         - name: Sign macOS binary ad hoc
+           # No Apple credentials are configured, so the script signs ad hoc
+           # with the release entitlements. It reads only the APPLE_* variables
+           # it is given, and this step passes none.
+           if: startsWith(matrix.target_id, 'darwin-')
+           run: bash scripts/ci-macos-sign.sh "${{ matrix.binary_path }}"
+         - name: Upload release binary
+           uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+           with:
+              name: omp-binary-${{ matrix.target_id }}
+              path: ${{ matrix.binary_path }}
+              if-no-files-found: error
+              retention-days: 7
+
+   release_smoke:
+      name: "Smoke release binary: ${{ matrix.target_id }}"
+      needs: [release_binary]
+      runs-on: ${{ matrix.os }}
+      timeout-minutes: 20
+      strategy:
+         fail-fast: false
+         matrix:
+            # The runner images upstream's release_smoke job uses.
+            include:
+               - { os: ubuntu-22.04, target_id: linux-x64, binary: omp-linux-x64 }
+               - { os: macos-15, target_id: darwin-arm64, binary: omp-darwin-arm64 }
+               - { os: macos-15-intel, target_id: darwin-x64, binary: omp-darwin-x64 }
+               - { os: windows-2025, target_id: win32-x64, binary: omp-windows-x64.exe }
+      permissions:
+         contents: read
+      steps:
+         - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+           with:
+              name: omp-binary-${{ matrix.target_id }}
+              path: binaries
+         - name: Smoke release binary
+           if: runner.os != 'Windows'
+           env:
+              BINARY: binaries/${{ matrix.binary }}
+           run: |
+              set -euo pipefail
+              chmod +x "$BINARY"
+              if [ "$RUNNER_OS" = macOS ]; then codesign --verify --strict --verbose=2 "$BINARY"; fi
+              runtime_dir="$(mktemp -d)"
+              HOME="$runtime_dir/home" XDG_DATA_HOME="$runtime_dir/xdg" "$BINARY" --version
+              HOME="$runtime_dir/home" XDG_DATA_HOME="$runtime_dir/xdg" "$BINARY" --smoke-test
+         - name: Smoke release binary (Windows)
+           if: runner.os == 'Windows'
+           shell: pwsh
+           env:
+              BINARY: binaries/${{ matrix.binary }}
+           run: |
+              $runtimeDir = Join-Path $env:RUNNER_TEMP "omp-smoke"
+              $env:HOME = Join-Path $runtimeDir "home"
+              $env:USERPROFILE = $env:HOME
+              $env:LOCALAPPDATA = Join-Path $runtimeDir "local"
+              $env:XDG_DATA_HOME = Join-Path $runtimeDir "xdg"
+              New-Item -ItemType Directory -Force -Path $env:HOME, $env:LOCALAPPDATA, $env:XDG_DATA_HOME | Out-Null
+              & $env:BINARY --version
+              if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+              & $env:BINARY --smoke-test
+              if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+   release_assets:
+      name: Checksum release assets
+      needs: [release_smoke]
+      runs-on: ubuntu-22.04
+      timeout-minutes: 10
+      permissions:
+         contents: read
+      steps:
+         - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+           with:
+              persist-credentials: false
+         - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+           with:
+              bun-version: 1.4.4
+         - name: Download release binaries
+           uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+           with:
+              pattern: omp-binary-*
+              path: release
+              merge-multiple: true
+         - name: Generate SHA256SUMS
+           run: bun run ci:release:checksums release/SHA256SUMS release/omp-darwin-arm64 release/omp-darwin-x64 release/omp-linux-x64 release/omp-windows-x64.exe
+         - name: Verify SHA256SUMS
+           run: |
+              set -euo pipefail
+              cd release
+              # Exactly the four binaries and their checksum file, nothing else.
+              test "$(ls -A | wc -l)" -eq 5
+              sha256sum -c SHA256SUMS
+         - name: Upload release assets
+           uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+           with:
+              name: omp-release-assets
+              path: release/
+              if-no-files-found: error
+              retention-days: 7
+
+   publish:
+      name: Publish GitHub release
+      # Only a tag push publishes; a manual run stops after release_assets.
+      if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+      needs: [release_assets]
+      runs-on: ubuntu-22.04
+      timeout-minutes: 15
+      permissions:
+         contents: write
+      steps:
+         - name: Download release assets
+           uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+           with:
+              name: omp-release-assets
+              path: release
+         - name: Create the release as a draft
+           # A draft is complete before anyone sees it. gh refuses an existing
+           # release for the tag, so a published release is never overwritten.
+           env:
+              GH_TOKEN: ${{ github.token }}
+              TAG: ${{ github.ref_name }}
+           run: |
+              set -euo pipefail
+              cd release
+              gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --verify-tag --draft --title "$TAG" --generate-notes omp-darwin-arm64 omp-darwin-x64 omp-linux-x64 omp-windows-x64.exe SHA256SUMS
+         - name: Publish the release
+           env:
+              GH_TOKEN: ${{ github.token }}
+              TAG: ${{ github.ref_name }}
+           run: gh release edit "$TAG" --repo "$GITHUB_REPOSITORY" --draft=false

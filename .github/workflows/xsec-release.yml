@@ -4,7 +4,8 @@ name: xsec release
 # "Releases" in scripts/xsec/README.md for the assets and the checksum format.
 #
 # A tag push (v<upstream>-xsec.<n>) publishes a GitHub Release in this
-# repository. A manual run builds, smokes and checksums the same assets and
+# repository, once tag_guard finds the tagged commit on xsec with a green xsec
+# CI push run. A manual run builds, smokes and checksums the same assets and
 # stops there: only the publish job is limited to tag pushes.
 #
 # GitHub-hosted runners only, and no secrets: macOS binaries are signed ad hoc
@@ -152,11 +153,39 @@ jobs:
               if-no-files-found: error
               retention-days: 7
 
+   tag_guard:
+      name: Check the tagged commit
+      # A tag may publish only from a commit of xsec whose xsec CI push run
+      # succeeded (scripts/xsec/check-release-tag.ts). The job reads only; its
+      # token needs actions: read to list the runs. A manual run checks the
+      # commit it started on, so from a branch other than xsec it fails, as a
+      # tag there would.
+      runs-on: ubuntu-22.04
+      timeout-minutes: 10
+      permissions:
+         contents: read
+         actions: read
+      steps:
+         - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+           with:
+              fetch-depth: 0
+              persist-credentials: false
+         - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+           with:
+              bun-version: 1.4.4
+         - name: Fetch xsec
+           run: git fetch --no-tags origin "+refs/heads/xsec:refs/remotes/origin/xsec"
+         - name: Check the commit against xsec and its CI run
+           env:
+              GITHUB_TOKEN: ${{ github.token }}
+           run: bun scripts/xsec/check-release-tag.ts "$GITHUB_SHA"
+
    publish:
       name: Publish GitHub release
-      # Only a tag push publishes; a manual run stops after release_assets.
+      # Only a tag push publishes, and only once tag_guard passes; a manual run
+      # stops after release_assets.
       if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
-      needs: [release_assets]
+      needs: [release_assets, tag_guard]
       runs-on: ubuntu-22.04
       timeout-minutes: 15
       permissions:

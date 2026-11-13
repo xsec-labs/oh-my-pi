@@ -128,9 +128,10 @@ A registry built without settings follows the process's global settings. With no
 
 ## Masking limits
 
-Each entry is a case where the ACP client can see text the restorer does not fully restore, and why.
+Each entry is a case where the ACP client does not get the restored text, and why.
 
-- **Obfuscator set mid-block.** If the session's obfuscator is set while a text or thinking block is streaming, the restorer starts that block's sent count at zero, so the client receives the block's earlier text again. Blocks that start with the obfuscator in place are not affected. The fix is a follow-up.
+- **Masking turned on mid-block.** A placeholder that starts before the obfuscator is set reaches the client as written. The text sent before the switch was passed through unchanged, and only the text after it is restored.
+- **Masking turned off, or the obfuscator replaced, mid-block.** The restorer keeps the block's held text and its sent count from the old obfuscator, so the client can get text out of order, lose some of it, or get a fragment of a placeholder. Not fixed in this change.
 
 ## Working locally
 

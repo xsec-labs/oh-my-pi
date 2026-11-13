@@ -6,6 +6,7 @@
  * The policy is process-wide: `deduplicateMCPToolsByName` runs without a settings scope, so the
  * setting reaches it through `effect` (the same way `mcp.renderMarkdownResults` reaches its module).
  */
+import { AsyncLocalStorage } from "node:async_hooks";
 
 /** Values of `mcp.toolNameCollision`. */
 export const MCP_TOOL_NAME_COLLISION_MODES = ["keep-first", "error"] as const;
@@ -31,17 +32,41 @@ export interface MCPToolNameCollision {
 	readonly loser: MCPToolCollisionOrigin;
 }
 
-function describeOrigin(origin: MCPToolCollisionOrigin): string {
+/** A collision as an observer sees it. `enforced` is true when the policy fails the tool list build or refresh. */
+export interface MCPToolNameCollisionObservation {
+	readonly collision: MCPToolNameCollision;
+	readonly enforced: boolean;
+}
+
+const collisionObservers = new AsyncLocalStorage<(observation: MCPToolNameCollisionObservation) => void>();
+
+/**
+ * Runs `fn` with `observer` attached. Every collision the policy sees while `fn` runs, including the
+ * work `fn` starts and awaits, also reaches `observer`. Code outside the scope is not observed.
+ */
+export function observeMCPToolNameCollisions<T>(
+	observer: (observation: MCPToolNameCollisionObservation) => void,
+	fn: () => T,
+): T {
+	return collisionObservers.run(observer, fn);
+}
+
+/** `<server>:<tool>` for an origin, as the policy's error names it. */
+export function describeMCPToolOrigin(origin: MCPToolCollisionOrigin): string {
 	return `${String(origin.mcpServerName)}:${String(origin.mcpToolName)}`;
 }
 
 /**
  * Runs just before the caller warns about a collision. In `error` mode it throws, so the tool list
  * build or refresh fails with the tool name and both origins. In `keep-first` mode it returns and the
- * caller keeps the stable winner, as upstream does.
+ * caller keeps the stable winner, as upstream does. An observer in scope hears about the collision first.
  */
 export function enforceMCPToolNameCollisionPolicy(collision: MCPToolNameCollision): void {
-	if (mode !== "error") return;
+	const enforced = mode === "error";
+	collisionObservers.getStore()?.({ collision, enforced });
+	if (!enforced) return;
 	const { name, winner, loser } = collision;
-	throw new Error(`OMP MCP Tool name collision: ${name} (${describeOrigin(winner)}, ${describeOrigin(loser)})`);
+	throw new Error(
+		`OMP MCP Tool name collision: ${name} (${describeMCPToolOrigin(winner)}, ${describeMCPToolOrigin(loser)})`,
+	);
 }

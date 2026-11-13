@@ -16,6 +16,8 @@ interface Step {
 interface JobSpec {
 	"runs-on"?: unknown;
 	steps?: Step[];
+	permissions?: Record<string, unknown>;
+	env?: Record<string, unknown>;
 }
 
 interface WorkflowSpec {
@@ -38,6 +40,21 @@ function countTokenReferences(value: unknown): number {
 }
 
 describe("xsec sync workflow", () => {
+	it("grants the workflow's own token read scopes only, including the checks and statuses the merge reads", async () => {
+		// Writes go through OMP_SYNC_TOKEN; a write scope here would let a run write without it.
+		const workflow = await loadWorkflow();
+		const permissions = workflow.jobs.sync.permissions ?? {};
+		expect(Object.values(permissions).every(level => level === "read")).toBe(true);
+		expect(permissions.checks).toBe("read");
+		expect(permissions.statuses).toBe("read");
+	});
+
+	it("passes the workflow's own token to the run as the read token", async () => {
+		// The run reads with this token; it must be the workflow's own, not the sync token.
+		const workflow = await loadWorkflow();
+		expect(workflow.jobs.sync.env?.GITHUB_READ_TOKEN).toBe(`\${{ github.token }}`);
+	});
+
 	it("runs only on a schedule or by hand, never on pull request events", async () => {
 		// A pull request event would run the pull request's own code with the token.
 		const workflow = await loadWorkflow();

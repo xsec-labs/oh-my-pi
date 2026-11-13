@@ -64,7 +64,7 @@ CI uses GitHub-hosted runners only. Never attach a self-hosted runner to this re
 
 A sync pull request closed without merging is not reopened. Delete its branch to let a later run open a new one.
 
-**Token.** `OMP_SYNC_TOKEN` is a fine-grained token for this repository with read and write access to contents, pull requests and workflows, and read access to checks and commit statuses: the run reads the check results on a pull request's head before it merges. The workflow's own token cannot push a change to a workflow file, and a pull request opened with it does not start CI. Only the sync job references the token. It reaches git and the API per command and is never stored in `.git/config`. Never print it or commit it.
+**Token.** `OMP_SYNC_TOKEN` is a fine-grained token for this repository with read and write access to contents, pull requests and workflows. The run uses it for writes only: pushes, opening and updating the sync pull request, and merging. The workflow's own token cannot push a change to a workflow file, and a push or pull request made with it does not start CI, so it is never used for writes. The run reads with the workflow's own token, which the job grants read access to contents, pull requests, checks and commit statuses. Only the sync job references the token. It reaches git and the API per command and is never stored in `.git/config`. Never print it or commit it.
 
 **Runners.** GitHub-hosted only. The merge uses `git merge-tree --write-tree`, which needs git 2.38 or newer; `ubuntu-24.04` ships a newer git.
 

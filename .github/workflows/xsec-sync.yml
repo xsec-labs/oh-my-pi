@@ -31,15 +31,22 @@ jobs:
       name: Sync upstream
       runs-on: ubuntu-24.04
       timeout-minutes: 30
+      # Writes use OMP_SYNC_TOKEN. A push or a pull request made with the workflow's own
+      # token does not start CI, so the workflow's token only reads: the pull request,
+      # its checks and its commit status, and the code it fetches.
       permissions:
          contents: read
+         pull-requests: read
+         checks: read
+         statuses: read
       env:
          OMP_SYNC_TOKEN: ${{ secrets.OMP_SYNC_TOKEN }}
+         GITHUB_READ_TOKEN: ${{ github.token }}
       steps:
          - name: Require the sync token
            run: |
               if [ -z "$OMP_SYNC_TOKEN" ]; then
-                echo "::error title=OMP_SYNC_TOKEN is not set::Add a fine-grained token for this repository as the secret OMP_SYNC_TOKEN, with read and write access to contents, pull requests and workflows, and read access to checks and commit statuses."
+                echo "::error title=OMP_SYNC_TOKEN is not set::Add a fine-grained token for this repository as the secret OMP_SYNC_TOKEN, with read and write access to contents, pull requests and workflows."
                 exit 1
               fi
          - name: Check out with full history

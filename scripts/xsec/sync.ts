@@ -11,7 +11,8 @@
  *    rebuilds it when xsec has moved on;
  * 4. merges the pull request itself once decideAutoMerge allows it.
  *
- * Environment: OMP_SYNC_TOKEN (required: pushes and the pull request API),
+ * Environment: OMP_SYNC_TOKEN (required: every write, to git and to the API),
+ * GITHUB_READ_TOKEN (required: every read; the workflow passes its own token),
  * GITHUB_REPOSITORY (required), GITHUB_API_URL, GITHUB_STEP_SUMMARY, and
  * DRY_RUN=1 to plan and report without pushing, opening or merging anything.
  * XSEC_SYNC_UPSTREAM overrides the upstream URL, for tests against a local mirror.
@@ -109,11 +110,18 @@ interface CombinedStatus {
 
 class GitHubApi {
 	readonly #apiUrl: string;
-	readonly #token: string;
+	readonly #readToken: string;
+	readonly #writeToken: string;
 
-	constructor(apiUrl: string, token: string) {
+	/**
+	 * Reads (GET) use the read token, which is the workflow's own token. Every other request
+	 * uses the write token, because a push or pull request made with the workflow's token
+	 * does not start CI.
+	 */
+	constructor(apiUrl: string, readToken: string, writeToken: string) {
 		this.#apiUrl = apiUrl.replace(/\/+$/, "");
-		this.#token = token;
+		this.#readToken = readToken;
+		this.#writeToken = writeToken;
 	}
 
 	async request<T>(
@@ -123,9 +131,10 @@ class GitHubApi {
 	): Promise<T> {
 		const url = new URL(`${this.#apiUrl}${route}`);
 		for (const [key, value] of Object.entries(options.query ?? {})) url.searchParams.set(key, value);
+		const token = method === "GET" ? this.#readToken : this.#writeToken;
 		const headers: Record<string, string> = {
 			Accept: "application/vnd.github+json",
-			Authorization: `Bearer ${this.#token}`,
+			Authorization: `Bearer ${token}`,
 			"X-GitHub-Api-Version": "2022-11-28",
 		};
 		const init: RequestInit = { method, headers };
@@ -161,7 +170,8 @@ interface RunContext {
 	/** The owner part of `repository`, for the `head` filter of pull request lists. */
 	owner: string;
 	dryRun: boolean;
-	originEnv: Record<string, string>;
+	readEnv: Record<string, string>;
+	writeEnv: Record<string, string>;
 	/** The current head of xsec. */
 	xsecSha: string;
 }
@@ -192,7 +202,7 @@ async function fastForwardMain(ctx: RunContext): Promise<void> {
 	}
 	report(`Fast-forward main ${forkMain === null ? "(missing)" : short(forkMain)} to ${short(upstreamMain)}.`);
 	if (!ctx.dryRun) {
-		await gitText(["push", "--quiet", "origin", `${upstreamMain}:refs/heads/main`], { env: ctx.originEnv });
+		await gitText(["push", "--quiet", "origin", `${upstreamMain}:refs/heads/main`], { env: ctx.writeEnv });
 	}
 }
 
@@ -222,7 +232,7 @@ async function listOpenSyncPulls(ctx: RunContext): Promise<PullSummary[]> {
 
 /** The sha a sync branch points to on the fork, or null when it does not exist. */
 async function remoteBranchSha(ctx: RunContext, branch: string): Promise<string | null> {
-	const out = await gitText(["ls-remote", "--heads", "origin", `refs/heads/${branch}`], { env: ctx.originEnv });
+	const out = await gitText(["ls-remote", "--heads", "origin", `refs/heads/${branch}`], { env: ctx.readEnv });
 	const [line] = out.split("\n").filter(text => text !== "");
 	return line === undefined ? null : (line.split("\t")[0] ?? null);
 }
@@ -230,7 +240,7 @@ async function remoteBranchSha(ctx: RunContext, branch: string): Promise<string 
 async function pushBranch(ctx: RunContext, branch: string, sha: string, expected: string | null): Promise<void> {
 	// A lease on the sha we inspected: a push that lands in between makes this fail, not overwrite.
 	const lease = expected === null ? [] : [`--force-with-lease=refs/heads/${branch}:${expected}`];
-	await gitText(["push", "--quiet", ...lease, "origin", `${sha}:refs/heads/${branch}`], { env: ctx.originEnv });
+	await gitText(["push", "--quiet", ...lease, "origin", `${sha}:refs/heads/${branch}`], { env: ctx.writeEnv });
 }
 
 function mergeMessage(tag: string, tagSha: string): string {
@@ -396,22 +406,25 @@ async function writeSummary(): Promise<void> {
 
 async function main(): Promise<void> {
 	const token = requireEnv("OMP_SYNC_TOKEN");
+	const readToken = requireEnv("GITHUB_READ_TOKEN");
 	const repository = requireEnv("GITHUB_REPOSITORY");
 	const dryRun = Bun.env.DRY_RUN === "1";
 	if (dryRun) report("Dry run: nothing is pushed, opened or merged.");
 
-	const origin = originEnv(token);
+	const readEnv = originEnv(readToken);
+	const writeEnv = originEnv(token);
 	await fetchUpstream();
 	// Fetch the sync branches so their commits are local before they are inspected.
 	await gitText(["fetch", "--quiet", "--no-tags", "origin", "+refs/heads/sync/*:refs/remotes/origin/sync/*"], {
-		env: origin,
+		env: readEnv,
 	});
 	const ctx: RunContext = {
-		api: new GitHubApi(Bun.env.GITHUB_API_URL || "https://api.github.com", token),
+		api: new GitHubApi(Bun.env.GITHUB_API_URL || "https://api.github.com", readToken, token),
 		repository,
 		owner: repository.split("/")[0] ?? repository,
 		dryRun,
-		originEnv: origin,
+		readEnv,
+		writeEnv,
 		xsecSha: await requireCommit(FORK_XSEC_REF),
 	};
 	await fastForwardMain(ctx);

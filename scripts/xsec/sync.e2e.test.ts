@@ -10,6 +10,7 @@ import { gitText, parentsOf, resolveCommit } from "./sync-git";
 
 const REPO = "xsec-labs/oh-my-pi";
 const TOKEN = "test-token";
+const READ_TOKEN = "read-token";
 const SCRIPTS = path.join(import.meta.dir);
 const SYNC_SOURCES = ["upstream.ts", "check-upstream-diff.ts", "sync-policy.ts", "sync-git.ts", "sync.ts"];
 
@@ -78,7 +79,10 @@ class FakeGitHub {
 	async #handle(request: Request): Promise<Response> {
 		const url = new URL(request.url);
 		this.requests.push(`${request.method} ${url.pathname}`);
-		if (request.headers.get("authorization") !== `Bearer ${TOKEN}`) return this.json({ message: "bad token" }, 401);
+		// Reads carry the workflow's own token, writes carry the sync token.
+		const expected = request.method === "GET" ? READ_TOKEN : TOKEN;
+		if (request.headers.get("authorization") !== `Bearer ${expected}`)
+			return this.json({ message: "bad token" }, 401);
 		const base = `/repos/${REPO}`;
 		if (request.method === "GET" && url.pathname === `${base}/pulls`) {
 			const state = url.searchParams.get("state");
@@ -202,6 +206,7 @@ async function runSync(overrides: Record<string, string | undefined> = {}): Prom
 	const env: Record<string, string | undefined> = {
 		...Bun.env,
 		OMP_SYNC_TOKEN: TOKEN,
+		GITHUB_READ_TOKEN: READ_TOKEN,
 		GITHUB_REPOSITORY: REPO,
 		GITHUB_API_URL: api.url,
 		XSEC_SYNC_UPSTREAM: upstreamBare,
@@ -277,6 +282,13 @@ describe("sync.ts against a fork and a fake GitHub", () => {
 		const run = await runSync({ OMP_SYNC_TOKEN: "" });
 		expect(run.exitCode).toBe(1);
 		expect(run.stderr).toContain("OMP_SYNC_TOKEN is not set");
+		expect(api.requests).toEqual([]);
+	});
+
+	it("stops with a clear error when the workflow's read token is missing", async () => {
+		const run = await runSync({ GITHUB_READ_TOKEN: "" });
+		expect(run.exitCode).toBe(1);
+		expect(run.stderr).toContain("GITHUB_READ_TOKEN is not set");
 		expect(api.requests).toEqual([]);
 	});
 

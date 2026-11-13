@@ -5,11 +5,10 @@
  * `agent_message_chunk`, the channel that already carries startup failures. Each note also carries a
  * machine-readable marker at `content._meta.xsec.mcpNotice`, so a client can tell it from model text.
  *
- * The reporter changes what the client can see, never when or whether a session starts. Desktop #868
- * (xSecDesktop a1a5e5ec, on main) sets `OMP_MCP_STARTUP_TIMEOUT_MS=0` when it starts omp. That makes a session
- * wait for every server, so it has no late connects to report. The variable takes effect only from OMP 18.20
- * on: Desktop's current 18.0.9 pin ignores it, so until Desktop pins a fork OMP its sessions keep the 250 ms
- * window and do see late state.
+ * The reporter changes what the client can see, never when or whether a session starts. A client that sets
+ * `OMP_MCP_STARTUP_TIMEOUT_MS=0` gets a session that waits for every server, so it receives no server notes,
+ * and only a tool collision can still be reported. OMP reads that variable from 18.20 on. A build without this
+ * reporter sends none of these notes.
  */
 import { logger } from "@oh-my-pi/pi-utils";
 import type { SessionUpdate } from "@oh-my-pi/pi-utils/acp";
@@ -71,6 +70,8 @@ export class LateMcpReporter {
 	 * connecting when this runs is noted now, and reported when it connects or fails.
 	 */
 	follow(manager: LateMcpManager, configs: ServerConfigs): void {
+		// The caller called stop() before it connected, and nothing reaches the reporter until the listener below
+		// is attached, so this stop() drops nothing that was queued for the client.
 		this.stop();
 		this.#configs = configs;
 		for (const name of Object.keys(configs)) {

@@ -158,7 +158,7 @@ After `session/new` returns, MCP state can still change: a server that was conne
 
 A client should read the marker rather than the text. The notes can arrive in the middle of a prompt turn, so they are not model output. "Connected" can come before the tool refresh that lists the tools, so a client that needs the tool list should wait for it. With `OMP_MCP_STARTUP_TIMEOUT_MS=0`, `session/new` waits for every server, so a session gets no `server_*` notes and only `tool_collision` can occur.
 
-Known gap: a server that fails after the startup window has closed, but before the reporter follows the manager, is not reported. Its tools are simply absent. Desktop #868 (xSecDesktop a1a5e5ec) sets the variable to 0. It takes effect only from OMP 18.20 on, and Desktop's current 18.0.9 pin ignores it, so Desktop sessions can still see `server_*` notes until Desktop pins a fork OMP.
+Known gap: a server that fails after the startup window has closed, but before the reporter follows the manager, is not reported. Its tools are simply absent. The variable is read from OMP 18.20 on, and a build without this reporter sends none of these notes. So a client on an older build gets no late notes at all, and a client on this build that sets the variable to 0 gets only `tool_collision`.
 
 ## Working locally
 

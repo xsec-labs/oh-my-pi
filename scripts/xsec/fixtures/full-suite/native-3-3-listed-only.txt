@@ -1,0 +1,50 @@
+$ bun scripts/ci-test-ts.ts coding-agent-native
+Running 37 test command(s), up to 2 in parallel (OMP_TEST_CONCURRENCY=<n> to lower); 4 cores, --parallel=1 per chunk.
+✓ packages/coding-agent (native/tooling/browser/unit bucket; 1120 files; parallel=1 chunk 6/112; 10 files) [11.0s]
+✓ packages/coding-agent (native/tooling/browser/unit bucket; 1120 files; parallel=1 chunk 3/112; 10 files) [15.7s]
+✓ packages/coding-agent (native/tooling/browser/unit bucket; 1120 files; parallel=1 chunk 12/112; 10 files) [3.9s]
+✓ packages/coding-agent (native/tooling/browser/unit bucket; 1120 files; parallel=1 chunk 9/112; 10 files) [11.9s]
+✓ packages/coding-agent (native/tooling/browser/unit bucket; 1120 files; parallel=1 chunk 18/112; 10 files) [4.8s]
+✓ packages/coding-agent (native/tooling/browser/unit bucket; 1120 files; parallel=1 chunk 15/112; 10 files) [14.1s]
+✓ packages/coding-agent (native/tooling/browser/unit bucket; 1120 files; parallel=1 chunk 24/112; 10 files) [4.7s]
+✓ packages/coding-agent (native/tooling/browser/unit bucket; 1120 files; parallel=1 chunk 21/112; 10 files) [13.2s]
+✓ packages/coding-agent (native/tooling/browser/unit bucket; 1120 files; parallel=1 chunk 27/112; 10 files) [6.0s]
+✓ packages/coding-agent (native/tooling/browser/unit bucket; 1120 files; parallel=1 chunk 33/112; 10 files) [1.8s]
+✓ packages/coding-agent (native/tooling/browser/unit bucket; 1120 files; parallel=1 chunk 30/112; 10 files) [13.9s]
+✓ packages/coding-agent (native/tooling/browser/unit bucket; 1120 files; parallel=1 chunk 36/112; 10 files) [16.0s]
+✓ packages/coding-agent (native/tooling/browser/unit bucket; 1120 files; parallel=1 chunk 39/112; 10 files) [7.7s]
+✓ packages/coding-agent (native/tooling/browser/unit bucket; 1120 files; parallel=1 chunk 42/112; 10 files) [7.6s]
+✓ packages/coding-agent (native/tooling/browser/unit bucket; 1120 files; parallel=1 chunk 48/112; 10 files) [6.0s]
+✓ packages/coding-agent (native/tooling/browser/unit bucket; 1120 files; parallel=1 chunk 45/112; 10 files) [23.0s]
+✓ packages/coding-agent (native/tooling/browser/unit bucket; 1120 files; parallel=1 chunk 54/112; 10 files) [2.8s]
+✓ packages/coding-agent (native/tooling/browser/unit bucket; 1120 files; parallel=1 chunk 57/112; 10 files) [19.6s]
+✓ packages/coding-agent (native/tooling/browser/unit bucket; 1120 files; parallel=1 chunk 51/112; 10 files) [35.9s]
+✓ packages/coding-agent (native/tooling/browser/unit bucket; 1120 files; parallel=1 chunk 63/112; 10 files) [10.9s]
+✓ packages/coding-agent (native/tooling/browser/unit bucket; 1120 files; parallel=1 chunk 66/112; 10 files) [25.7s]
+✓ packages/coding-agent (native/tooling/browser/unit bucket; 1120 files; parallel=1 chunk 60/112; 10 files) [52.7s]
+✓ packages/coding-agent (native/tooling/browser/unit bucket; 1120 files; parallel=1 chunk 69/112; 10 files) [15.7s]
+✓ packages/coding-agent (native/tooling/browser/unit bucket; 1120 files; parallel=1 chunk 72/112; 10 files) [6.0s]
+✓ packages/coding-agent (native/tooling/browser/unit bucket; 1120 files; parallel=1 chunk 78/112; 10 files) [1.4s]
+✓ packages/coding-agent (native/tooling/browser/unit bucket; 1120 files; parallel=1 chunk 75/112; 10 files) [20.4s]
+✓ packages/coding-agent (native/tooling/browser/unit bucket; 1120 files; parallel=1 chunk 81/112; 10 files) [46.8s]
+✗ packages/coding-agent (native/tooling/browser/unit bucket; 1120 files; parallel=1 chunk 84/112; 10 files) [65.4s] — test/tools/browser-relay-detach.test.ts > relay tabs Chrome detaches omp from > reports a cancel that lands during the re-adoption as a cancel
+
+✗ packages/coding-agent (native/tooling/browser/unit bucket; 1120 files; parallel=1 chunk 84/112; 10 files) (exit 1)
+$ bun test --only-failures test/tools/browser-queries.test.ts test/tools/browser-react-vitals.test.ts test/tools/browser-read-after-navigation.test.ts test/tools/browser-readable.test.ts test/tools/browser-recording.test.ts test/tools/browser-relay-bridge.test.ts test/tools/browser-relay-daemon.test.ts test/tools/browser-relay-debugger-ownership.test.ts test/tools/browser-relay-detach.test.ts test/tools/browser-relay-download-pairing.test.ts --parallel=1 --timeout=120000
+
+  ✗ test/tools/browser-relay-detach.test.ts > relay tabs Chrome detaches omp from > reports a cancel that lands during the re-adoption as a cancel
+ToolError: Tab "relay-detach-8649" was killed: Browser code execution did not stop after cancellation. Reopen it.
+✓ packages/coding-agent (native/tooling/browser/unit bucket; 1120 files; parallel=1 chunk 90/112; 10 files) [5.8s]
+✓ packages/coding-agent (native/tooling/browser/unit bucket; 1120 files; parallel=1 chunk 93/112; 10 files) [6.8s]
+✓ packages/coding-agent (native/tooling/browser/unit bucket; 1120 files; parallel=1 chunk 96/112; 10 files) [9.8s]
+✓ packages/coding-agent (native/tooling/browser/unit bucket; 1120 files; parallel=1 chunk 99/112; 10 files) [7.2s]
+✓ packages/coding-agent (native/tooling/browser/unit bucket; 1120 files; parallel=1 chunk 102/112; 10 files) [1.2s]
+✓ packages/coding-agent (native/tooling/browser/unit bucket; 1120 files; parallel=1 chunk 105/112; 10 files) [16.3s]
+✓ packages/coding-agent (native/tooling/browser/unit bucket; 1120 files; parallel=1 chunk 108/112; 10 files) [1.2s]
+✓ packages/coding-agent (native/tooling/browser/unit bucket; 1120 files; parallel=1 chunk 111/112; 10 files) [6.2s]
+✓ packages/coding-agent (native/tooling/browser/unit bucket; 1120 files; parallel=1 chunk 87/112; 10 files) [97.0s]
+
+ 36 chunks passed
+ 1 failed
+Ran 37 test command(s) in 311.9s.
+error: script "ci:test:coding-agent:native" exited with code 1

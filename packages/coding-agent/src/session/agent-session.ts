@@ -227,6 +227,7 @@ import type { SecretObfuscator } from "../secrets/obfuscator";
 import { USER_AWAIT_ID } from "../registry/agent-awaits";
 import { type AgentRef, AgentRegistry, type AgentRegistryApi } from "../registry/agent-registry";
 import { cfgSecretsEnabled } from "../secrets/settings";
+import { credentialShapeRedaction } from "../xsec/secret-builtin-patterns";
 import { releaseSharpshooterSession } from "../sharpshooter/backend";
 import { flushSharpshooterExtraction } from "../sharpshooter/extract";
 import { toolReadsSkillUris } from "../system-prompt";
@@ -11975,7 +11976,7 @@ export class AgentSession implements SettingsScope, AgentViewSession {
 		if (titleSignal.aborted || costGate.check()) return null;
 		// The title request carries user text, so it follows this session's own credential
 		// redaction policy like its conversation requests (see `settingsAwareStreamFn`).
-		const title = await withCredentialRedaction(cfgSecretsEnabled.get(this.settings), () =>
+		const title = await withCredentialRedaction(credentialShapeRedaction(cfgSecretsEnabled.get(this.settings)), () =>
 			generateSessionTitle(
 				firstMessage,
 				this.#modelRegistry,
@@ -12127,7 +12128,7 @@ export class AgentSession implements SettingsScope, AgentViewSession {
 			AbortSignal.timeout(TITLE_DRIFT_JUDGE_TIMEOUT_MS),
 		]);
 		// The judgment carries user text, so it follows this session's credential redaction policy like its title requests.
-		return withCredentialRedaction(cfgSecretsEnabled.get(this.settings), () =>
+		return withCredentialRedaction(credentialShapeRedaction(cfgSecretsEnabled.get(this.settings)), () =>
 			classifyTitleDrift(judge, title, recent, signal),
 		);
 	}

@@ -5,6 +5,7 @@
  */
 import { effect, register } from "../config/registry";
 import { MCP_TOOL_NAME_COLLISION_MODES, setMCPToolNameCollisionMode } from "./mcp-tool-collision";
+import { setDisabledBuiltinSecretPatterns } from "./secret-builtin-patterns";
 
 /**
  * `keep-first` (default): warn and keep the stable winner, as upstream does. `error`: fail tool loading.
@@ -30,3 +31,18 @@ export const cfgModelsDiscovery = register({
 	values: ["all", "configured"] as const,
 	default: "all",
 });
+
+const NO_BUILTIN_PATTERNS: readonly string[] = [];
+
+/**
+ * Built-in secret patterns (`secrets/patterns.ts`, by `name`) that the obfuscator leaves out. Default: none.
+ * A name that is not a built-in pattern makes building the obfuscator throw, so the session does not start.
+ * `Credential` also turns off pi-ai's credential rewrite for the same shapes. The behaviour lives in
+ * `./secret-builtin-patterns.ts`.
+ */
+export const cfgSecretsDisabledBuiltinPatterns = register({
+	id: "secrets.disabledBuiltinPatterns",
+	type: "array",
+	default: NO_BUILTIN_PATTERNS,
+});
+effect(cfgSecretsDisabledBuiltinPatterns, setDisabledBuiltinSecretPatterns);

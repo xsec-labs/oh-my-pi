@@ -436,6 +436,7 @@ import {
 } from "./mcp/settings";
 import { cfgPlanEnabled } from "./plan-mode/settings";
 import { cfgSecretsEnabled } from "./secrets/settings";
+import { credentialShapeRedaction } from "./xsec/secret-builtin-patterns";
 import {
 	cfgSnapcompactShape,
 	cfgSnapcompactSystemPrompt,
@@ -4811,7 +4812,7 @@ async function createAgentSessionScoped(options: CreateAgentSessionOptions): Pro
 		// request, not the process-wide switch (the newest effect holder's): concurrent ACP/SDK
 		// sessions in one process each keep their own policy.
 		const settingsAwareStreamFn: StreamFn = (streamModel, context, streamOptions) =>
-			withCredentialRedaction(cfgSecretsEnabled.get(settings), () =>
+			withCredentialRedaction(credentialShapeRedaction(cfgSecretsEnabled.get(settings)), () =>
 				settingsBoundStreamFn(streamModel, context, streamOptions),
 			);
 		// Primary-agent (and its auto-learn capture twin) provider options read per

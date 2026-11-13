@@ -41,6 +41,11 @@ export interface ContractHomeOptions {
 	workerThreads?: number;
 	/** `mcp.toolNameCollision` in the settings overlay. Desktop passes `error`, which is the default here. */
 	toolNameCollision?: "keep-first" | "error";
+	/**
+	 * Desktop's masking, as its `--config` overlay and global `secrets.yml` write it: `secrets.enabled` is on, with the
+	 * named built-in patterns off. Left out, masking is off, as it is by default in omp.
+	 */
+	masking?: { disabledBuiltinPatterns?: readonly string[]; secretsYml?: string };
 }
 
 /** Starts a fresh home for one test: its own agent directory, workspace, models file and settings overlay. */
@@ -67,6 +72,10 @@ export async function createContractHome(options: ContractHomeOptions = {}): Pro
 
 	// The settings Desktop passes with `--config`: discovery contacts only the configured providers, and a
 	// tool name collision is an error. Goal mode is written out so a test can turn it off.
+	const masking = options.masking;
+	if (masking?.secretsYml !== undefined) {
+		fs.writeFileSync(path.join(dirs.agentDir, "secrets.yml"), masking.secretsYml);
+	}
 	const configPath = path.join(base, "config.yml");
 	fs.writeFileSync(
 		configPath,
@@ -78,6 +87,13 @@ export async function createContractHome(options: ContractHomeOptions = {}): Pro
 			"goal:",
 			`  enabled: ${goalEnabled}`,
 			...(options.workerThreads === undefined ? [] : ["task:", `  workerThreads: ${options.workerThreads}`]),
+			...(masking === undefined
+				? []
+				: [
+						"secrets:",
+						"  enabled: true",
+						`  disabledBuiltinPatterns: ${JSON.stringify(masking.disabledBuiltinPatterns ?? [])}`,
+					]),
 			"",
 		].join("\n"),
 	);

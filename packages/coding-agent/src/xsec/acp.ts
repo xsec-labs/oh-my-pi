@@ -2,6 +2,8 @@ import { toolWireSchema } from "@oh-my-pi/pi-ai/utils/schema";
 import { RequestError } from "@oh-my-pi/pi-utils/acp";
 import type { AgentSession } from "../session/agent-session";
 
+export * from "./acp-continue";
+
 const SESSION_CAPABILITIES_METHOD = "_xsec/session/capabilities";
 
 /** Resolves an ACP session id to its live session. Throws ACP's not-found error for an unknown id. */

@@ -51,6 +51,10 @@ Sync pull requests (head branch `sync/*`, the name the sync workflow gives its b
 
 The judge reads the runner's report, so one limit remains: an error that a chunk prints without a test name is not visible when the same chunk also has a listed failure. A change to the list needs a fork pull request, a T-37 review, and evidence that the test also fails on unmodified upstream code. Everyday runs never read the list.
 
+**Re-runs and the run log.** A failed job may be re-run once, and both attempts are recorded here. A test goes on the list only after it fails in three consecutive runs of the same job on unmodified upstream code, or reproduces on demand locally. Run log:
+
+- Run 43379659258 (2026-11-13, `xsec` at ccfd81c6, native shards at concurrency 4). Attempt 1: `Test coding-agent native 3/3` failed on `bash-job-lifecycle.test.ts` (not listed), and `Test coding-agent native 1/3` failed on `cli-responses-websocket-recovery.test.ts` and `read-pdf-screenshot-chromium.test.ts` (not listed); `Test coding-agent native 2/3` passed. Attempt 2, a re-run of the two failed jobs: `Test coding-agent native 3/3` passed through the wrapper with the listed test as its only accepted failure, and `Test coding-agent native 1/3` passed 38 of 38. No test was added to the list.
+
 Not run here: the Rust license check (`cargo-deny`), the bazel and native addon build jobs, the install method smoke tests (`ci:test:install-methods`), and the release jobs. The fork changes no Rust, and the rest need upstream's runners or publishing secrets.
 
 The fork never compiles the native addon. `fetch-natives.ts` installs every `.node` file of `@oh-my-pi/pi-natives-<tag>` at the version the checkout is based on, and checks the tarball against the registry's `sha512` integrity value. Upstream's own pull-request jobs take `@latest` instead; the fork pins the version so the addons match the checkout.

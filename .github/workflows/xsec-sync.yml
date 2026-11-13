@@ -34,8 +34,9 @@ jobs:
       timeout-minutes: 30
       # Writes use OMP_SYNC_TOKEN. A push or a pull request made with the workflow's own
       # token does not start CI, so the workflow's token only reads: the pull request,
-      # its checks and its commit status, and the code it fetches.
+      # its checks, its commit status, the repository's workflow list, and the code it fetches.
       permissions:
+         actions: read
          contents: read
          pull-requests: read
          checks: read

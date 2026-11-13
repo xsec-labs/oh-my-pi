@@ -18,6 +18,7 @@
  * XSEC_SYNC_UPSTREAM overrides the upstream URL, for tests against a local mirror.
  */
 import * as fs from "node:fs/promises";
+import { findForeignActiveWorkflows, type WorkflowInfo } from "./check-workflows";
 import { UPSTREAM_REPO_URL } from "./upstream";
 import {
 	type ConflictReport,
@@ -41,6 +42,7 @@ import {
 	type SyncHeadFacts,
 	syncBranchFor,
 	versionOfSyncBranch,
+	type WorkflowFact,
 } from "./sync-policy";
 
 /** A failure that stops the run. Its message goes to the log and the step summary. */
@@ -127,7 +129,7 @@ type ApiMethod = "GET" | "POST" | "PUT";
 function permissionHint(method: ApiMethod, status: number): string {
 	if (method === "GET") {
 		return status === 403
-			? " The workflow's own token may lack a read permission: the job declares read access to contents, pull requests, checks and statuses."
+			? " The workflow's own token may lack a read permission: the job declares read access to contents, pull requests, checks, statuses and actions."
 			: "";
 	}
 	if (status === 401) return " OMP_SYNC_TOKEN was rejected: it may have expired or been revoked.";
@@ -349,6 +351,23 @@ async function openSyncPull(ctx: RunContext, release: ReleaseTag): Promise<void>
 	);
 }
 
+/**
+ * The repository's upstream workflows, as they stand just before a merge. The list is read with the
+ * workflow's own token. A listing that fails holds the pull request, since the state is then unknown.
+ */
+async function readUpstreamWorkflows(ctx: RunContext): Promise<WorkflowFact> {
+	try {
+		const workflows = await ctx.api.pages<WorkflowInfo>(
+			`/repos/${ctx.repository}/actions/workflows`,
+			{},
+			"workflows",
+		);
+		return { kind: "listed", enabled: findForeignActiveWorkflows(workflows).map(workflow => workflow.path) };
+	} catch (error) {
+		return { kind: "unreadable", reason: errorText(error) };
+	}
+}
+
 async function listCheckRuns(ctx: RunContext, sha: string): Promise<CheckRunSummary[]> {
 	return ctx.api.pages<CheckRunSummary>(`/repos/${ctx.repository}/commits/${sha}/check-runs`, {}, "check_runs");
 }
@@ -386,6 +405,7 @@ async function collectFacts(
 		checkRuns,
 		// GitHub reports `pending` for a commit with no status at all; only a reported status counts.
 		statusState: status.total_count === 0 ? null : status.state,
+		workflows: await readUpstreamWorkflows(ctx),
 	};
 }
 

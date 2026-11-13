@@ -148,6 +148,12 @@ export interface SyncHeadFacts {
 	changedPaths: readonly NameStatusEntry[];
 }
 
+/**
+ * Upstream's workflows as the repository lists them just before a merge: the workflow
+ * files that are enabled, or why the list could not be read. Either one holds the merge.
+ */
+export type WorkflowFact = { kind: "listed"; enabled: readonly string[] } | { kind: "unreadable"; reason: string };
+
 export interface AutoMergeFacts {
 	pull: SyncPullFacts;
 	/** The current head of xsec. */
@@ -160,6 +166,8 @@ export interface AutoMergeFacts {
 	checkRuns: readonly CheckRunFact[];
 	/** Combined commit status state, or null when no status was reported. */
 	statusState: string | null;
+	/** Upstream's workflows, as the repository lists them just before the merge. */
+	workflows: WorkflowFact;
 }
 
 export interface AutoMergeDecision {
@@ -210,6 +218,12 @@ export function decideAutoMerge(facts: AutoMergeFacts): AutoMergeDecision {
 		// scripts/xsec/upstream-allowlist.txt sits under the owned prefix, so this covers it too.
 		const reason = isOwnedPath(change.path) ? `it changes fork-owned file ${change.path}` : workflowReason(change);
 		if (reason) reasons.push(reason);
+	}
+	if (facts.workflows.kind === "unreadable") {
+		reasons.push(`the repository's workflows could not be listed: ${facts.workflows.reason}`);
+	} else {
+		for (const path of facts.workflows.enabled)
+			reasons.push(`upstream workflow ${path} is enabled in the repository`);
 	}
 	reasons.push(...checkReasons(facts.checkRuns, facts.statusState));
 	return { merge: reasons.length === 0, reasons };

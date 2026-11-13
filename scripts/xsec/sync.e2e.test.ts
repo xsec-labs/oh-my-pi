@@ -12,7 +12,14 @@ const REPO = "xsec-labs/oh-my-pi";
 const TOKEN = "test-token";
 const READ_TOKEN = "read-token";
 const SCRIPTS = path.join(import.meta.dir);
-const SYNC_SOURCES = ["upstream.ts", "check-upstream-diff.ts", "sync-policy.ts", "sync-git.ts", "sync.ts"];
+const SYNC_SOURCES = [
+	"upstream.ts",
+	"check-upstream-diff.ts",
+	"check-workflows.ts",
+	"sync-policy.ts",
+	"sync-git.ts",
+	"sync.ts",
+];
 
 const IDENTITY = {
 	GIT_AUTHOR_NAME: "test",
@@ -45,6 +52,14 @@ class FakeGitHub {
 	checkRuns: FakeCheckRun[] = [];
 	statusState = "pending";
 	statusCount = 0;
+	/** The repository's workflows, as its listing reports them. */
+	workflows: { name: string; path: string; state: string }[] = [
+		{ name: "CI", path: ".github/workflows/ci.yml", state: "disabled_manually" },
+		{ name: "OMP Nix", path: ".github/workflows/nix.yml", state: "disabled_manually" },
+		{ name: "xsec CI", path: ".github/workflows/xsec-ci.yml", state: "active" },
+	];
+	/** When set, the workflow listing fails with this status. */
+	workflowsFailure: number | null = null;
 	/** When set, the next merge is refused with this status and message instead of merging. */
 	mergeRefusal: { status: number; message: string } | null = null;
 	readonly #origin: string;
@@ -119,6 +134,10 @@ class FakeGitHub {
 			if (request.method === "GET" && !pullMatch[2]) return this.json(await this.#pullView(pull));
 			if (request.method === "PUT" && pullMatch[2])
 				return this.#merge(pull, (await request.json()) as { sha: string });
+		}
+		if (request.method === "GET" && url.pathname === `${base}/actions/workflows`) {
+			if (this.workflowsFailure !== null) return this.json({ message: "forbidden" }, this.workflowsFailure);
+			return this.json({ total_count: this.workflows.length, workflows: this.workflows });
 		}
 		const commitMatch = new RegExp(`^${base}/commits/([0-9a-f]+)/(check-runs|status)$`).exec(url.pathname);
 		if (request.method === "GET" && commitMatch) {
@@ -323,6 +342,31 @@ describe("sync.ts against a fork and a fake GitHub", () => {
 		expect(run.stdout).toContain("#1 stays open: check Fork scope is in_progress");
 		expect(api.requests.filter(request => request.startsWith("PUT"))).toEqual([]);
 		expect(api.pulls).toHaveLength(1);
+	});
+
+	// The two workflow scenarios run while the pull request is still open, before the merge below.
+	// Each restores the workflow state it changes, so later scenarios start from the same listing.
+	it("keeps the pull request open while an upstream workflow is enabled, and does not merge it", async () => {
+		api.checkRuns = [{ name: "Fork scope", status: "completed", conclusion: "success" }];
+		const listed = api.workflows;
+		api.workflows = listed.map(workflow =>
+			workflow.path === ".github/workflows/nix.yml" ? { ...workflow, state: "active" } : workflow,
+		);
+		const run = await runSync({});
+		api.workflows = listed;
+		expect(run.exitCode).toBe(0);
+		expect(run.stdout).toContain("#1 stays open: upstream workflow .github/workflows/nix.yml is enabled");
+		expect(api.requests.filter(request => request.startsWith("PUT"))).toEqual([]);
+	});
+
+	it("keeps the pull request open when the repository's workflows cannot be listed", async () => {
+		api.checkRuns = [{ name: "Fork scope", status: "completed", conclusion: "success" }];
+		api.workflowsFailure = 403;
+		const run = await runSync({});
+		api.workflowsFailure = null;
+		expect(run.exitCode).toBe(0);
+		expect(run.stdout).toContain("#1 stays open: the repository's workflows could not be listed:");
+		expect(api.requests.filter(request => request.startsWith("PUT"))).toEqual([]);
 	});
 
 	it("merges the pull request once every check is green", async () => {

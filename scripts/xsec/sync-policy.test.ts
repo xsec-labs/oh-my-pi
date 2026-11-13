@@ -39,6 +39,7 @@ function cleanFacts(): AutoMergeFacts {
 			{ name: "Tests workspace", status: "completed", conclusion: "skipped" },
 		],
 		statusState: null,
+		workflows: { kind: "listed", enabled: [] },
 	};
 }
 
@@ -248,6 +249,23 @@ describe("the auto-merge condition", () => {
 			],
 		});
 		expect(decideAutoMerge(edited)).toEqual({ merge: true, reasons: [] });
+	});
+
+	it("keeps a pull request while an upstream workflow is enabled, which would run with the fork's secrets", () => {
+		// The edit rule lets an upstream workflow edit merge, so an enabled workflow must hold the merge.
+		const decision = decideAutoMerge({
+			...cleanFacts(),
+			workflows: { kind: "listed", enabled: [".github/workflows/nix.yml"] },
+		});
+		expect(decision.merge).toBe(false);
+		expect(decision.reasons).toEqual(["upstream workflow .github/workflows/nix.yml is enabled in the repository"]);
+	});
+
+	it("keeps a pull request while the workflows cannot be listed, failing closed", () => {
+		// Without the list the state of upstream's workflows is unknown, so the merge waits for a run that can read it.
+		const decision = decideAutoMerge({ ...cleanFacts(), workflows: { kind: "unreadable", reason: "HTTP 403" } });
+		expect(decision.merge).toBe(false);
+		expect(decision.reasons).toEqual(["the repository's workflows could not be listed: HTTP 403"]);
 	});
 
 	it("keeps a draft, a pull request into another base, and one from a fork", () => {

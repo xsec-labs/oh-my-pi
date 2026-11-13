@@ -49,17 +49,48 @@ Sync pull requests (head branch `sync/*`, the name the sync workflow gives its b
 
 `run-full-suite.ts` runs each runner entry unchanged and judges its output. The entry passes only when the script ran to completion (its summary accounts for every chunk of `bun run <script> --dry-run`, or a sequential run exited 0), every failing chunk exited 1 and names its failing tests, and every failing test is on the list. Anything else fails the job: an unlisted failure, a chunk that exits with another code (a crash, an OOM kill or a watchdog timeout), a failure that names no test, or a run that did not finish. The accepted failures are written to the job summary. When a listed test's file is in the plan and the test did not fail in the run (it passed or was skipped), the job warns, so a fixed test leaves the list.
 
-The judge reads the runner's report, so one limit remains: an error that a chunk prints without a test name is not visible when the same chunk also has a listed failure. A change to the list needs a fork pull request, a T-37 review, and evidence that the test also fails on unmodified upstream code. Everyday runs never read the list.
+The judge reads the runner's report, so one limit remains: an error that a chunk prints without a test name is not visible when the same chunk also has a listed failure. A change to the list needs a fork pull request, a T-37 review, and evidence that the test fails on unmodified upstream code: three consecutive failing runs of the same job, or a reproduction on demand locally. A failed job is re-run once, and both attempts are recorded in the run log below. A test that passes on the re-run does not count toward the three. Everyday runs never read the list.
 
-**Re-runs and the run log.** A failed job may be re-run once, and both attempts are recorded here. A test goes on the list only after it fails in three consecutive runs of the same job on unmodified upstream code, or reproduces on demand locally. Run log:
+Run log:
 
-- Run 43379659258 (2026-11-13, `xsec` at ccfd81c6, native shards at concurrency 4). Attempt 1: `Test coding-agent native 3/3` failed on `bash-job-lifecycle.test.ts` (not listed), and `Test coding-agent native 1/3` failed on `cli-responses-websocket-recovery.test.ts` and `read-pdf-screenshot-chromium.test.ts` (not listed); `Test coding-agent native 2/3` passed. Attempt 2, a re-run of the two failed jobs: `Test coding-agent native 3/3` passed through the wrapper with the listed test as its only accepted failure, and `Test coding-agent native 1/3` passed 38 of 38. No test was added to the list.
+- Run 43379659258 (2026-11-13, `xsec` at ccfd81c6, native shards at concurrency 4). Attempt 1: `Test coding-agent native 3/3` (job 131734555532) failed on `bash-job-lifecycle` (unlisted), with relay-detach accepted; `Test coding-agent native 1/3` (job 131734555693) failed on `cli-responses-websocket-recovery` and `read-pdf-screenshot-chromium` (both unlisted); native 2/3 (job 131734555540) passed, 37 of 37. Attempt 2, a re-run of the two failed jobs: native 3/3 (job 131738372386) passed through the wrapper, with relay-detach the only accepted failure; native 1/3 (job 131738372505) passed, 38 of 38. The run concluded success at 06:51:20Z. No test was added to the list.
 
-Not run here: the Rust license check (`cargo-deny`), the bazel and native addon build jobs, the install method smoke tests (`ci:test:install-methods`), and the release jobs. The fork changes no Rust, and the rest need upstream's runners or publishing secrets.
+Not run here: the Rust license check (`cargo-deny`), the bazel and native addon build jobs, the install method smoke tests (`ci:test:install-methods`), and the release jobs, which `xsec-release.yml` runs instead (see Releases). The fork changes no Rust, and the rest need upstream's runners or publishing secrets.
 
 The fork never compiles the native addon. `fetch-natives.ts` installs every `.node` file of `@oh-my-pi/pi-natives-<tag>` at the version the checkout is based on, and checks the tarball against the registry's `sha512` integrity value. Upstream's own pull-request jobs take `@latest` instead; the fork pins the version so the addons match the checkout.
 
-CI uses GitHub-hosted runners only. Never attach a self-hosted runner to this repository: a pull request could run its code on it.
+CI and releases use GitHub-hosted runners only. Never attach a self-hosted runner to this repository: a pull request could run its code on it.
+
+## Releases
+
+`.github/workflows/xsec-release.yml` builds the binaries XSec Desktop ships. Pushing a tag `v<upstream>-xsec.<n>` publishes a GitHub Release in this repository. Push the tag only on a commit of `xsec` whose `xsec CI` run is green: the release workflow does not run the tests again.
+
+A manual run (`workflow_dispatch`) on any branch builds, smokes and checksums the same assets and publishes nothing. Its `omp-release-assets` artifact can be downloaded to check them.
+
+- `release_binary`: one job per target. Installs the target's prebuilt natives with `fetch-natives.ts`, builds with `bun run ci:release:build-binaries` (`RELEASE_TARGETS=<target>`), and signs the macOS binaries ad hoc with `scripts/ci-macos-sign.sh`.
+- `release_smoke`: runs each binary on its own platform with `--version` and `--smoke-test`. On macOS it also checks the code signature.
+- `release_assets`: writes `SHA256SUMS` and checks it against the binaries.
+- `publish` (tag pushes only): creates the release as a draft with the five assets, then publishes it. It uses the workflow's own token, with `contents: write` on this job only, and no secrets. If a release already exists for the tag, the job stops; delete that release before publishing the tag again.
+
+Release assets:
+
+| File | Binary |
+| --- | --- |
+| `omp-linux-x64` | Linux x64, `bun-linux-x64-baseline` |
+| `omp-darwin-arm64` | macOS arm64 |
+| `omp-darwin-x64` | macOS x64 |
+| `omp-windows-x64.exe` | Windows x64, `bun-windows-x64-baseline` |
+| `SHA256SUMS` | SHA-256 of the four binaries above |
+
+`SHA256SUMS` has one line per binary, sorted by file name: the 64 lowercase hex digits of the SHA-256, two spaces, the file name, and a newline. Check it with `sha256sum -c SHA256SUMS` on Linux, or `shasum -a 256 -c SHA256SUMS` on macOS. The file names carry no version; the release tag gives the fork version. Upstream's releases name their checksum file `SHA256SUMS.txt`; the fork's file has no extension.
+
+For XSec Desktop:
+
+- The tag is the fork version, for example `v18.20.0-xsec.1`. `omp --version` still prints the upstream version (`18.20.0`): the build takes no fork identifier, and adding one would change an upstream file. Desktop identifies a build by its tag and SHA-256, not by `--version`.
+- The release notes name the tag, the commit it was built from and the upstream version.
+- macOS binaries are signed ad hoc with the release entitlements. They are not Developer ID signed and not notarized. The Windows binary is not signed.
+- Each binary embeds the upstream native addon of its target, `@oh-my-pi/pi-natives-<target>` at the upstream version.
+- A release holds only the five files above: no npm packages, no browser relay archive, no `LICENSE`, and no musl or arm64 Linux or Windows binaries.
 
 ## Sync with upstream
 

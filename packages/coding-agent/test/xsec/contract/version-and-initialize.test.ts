@@ -1,4 +1,4 @@
-import { describe, expect, it, setDefaultTimeout } from "bun:test";
+import { describe, expect, setDefaultTimeout } from "bun:test";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { runOmp, useContractSession } from "./harness";
@@ -7,6 +7,7 @@ import { runOmp, useContractSession } from "./harness";
 setDefaultTimeout(120_000);
 
 const contract = useContractSession();
+const { it } = contract;
 const PACKAGE_JSON = path.resolve(import.meta.dir, "../../../package.json");
 
 describe("omp --version", () => {

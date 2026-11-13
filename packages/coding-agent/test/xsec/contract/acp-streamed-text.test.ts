@@ -1,4 +1,4 @@
-import { describe, expect, it, setDefaultTimeout } from "bun:test";
+import { describe, expect, setDefaultTimeout } from "bun:test";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { type AcpClient, type ContractHome, useContractSession } from "./harness";
@@ -6,6 +6,7 @@ import { type AcpClient, type ContractHome, useContractSession } from "./harness
 setDefaultTimeout(120_000);
 
 const contract = useContractSession();
+const { it } = contract;
 
 /** A made-up secret, long enough to be masked. The placeholder the session gives it is `$$ACME_<hash>$$`. */
 const SECRET = "Quill-Harbor-4471-Synthetic";

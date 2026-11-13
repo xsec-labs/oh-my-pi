@@ -1,10 +1,11 @@
-import { describe, expect, it, setDefaultTimeout } from "bun:test";
+import { describe, expect, setDefaultTimeout } from "bun:test";
 import * as path from "node:path";
-import { logLines, rejectionOf, toolResultTexts, useContractSession } from "./harness";
+import { type AcpChild, logLines, rejectionOf, toolResultTexts, useContractSession } from "./harness";
 
 setDefaultTimeout(120_000);
 
 const contract = useContractSession();
+const { it } = contract;
 const MCP_FIXTURE = path.join(import.meta.dir, "fixtures", "mcp-fixture-server.ts");
 
 /**
@@ -18,10 +19,35 @@ const COLLIDING_SERVERS = [
 ];
 const COLLIDING_TOOL = "mcp__foo_bar_echo";
 
+/**
+ * The MCP startup window the first two cases use. With 0, session/new waits for every configured server to settle, so
+ * a collision is reported by the request that starts the session. Desktop should set the same value when it starts omp;
+ * it does not set it yet. The third case starts its child without it, to pin what the default window does.
+ */
+const WAIT_FOR_ALL_MCP_SERVERS = { OMP_MCP_STARTUP_TIMEOUT_MS: "0" };
+
+/** The names of the echo tools the session lists, read from `_xsec/session/capabilities`. */
+async function listedEchoes(child: AcpChild, sessionId: string): Promise<string[]> {
+	const { tools } = await child.connection.extMethod("_xsec/session/capabilities", { sessionId });
+	return (tools as { name: string }[]).map(tool => tool.name).filter(name => name === COLLIDING_TOOL);
+}
+
+/**
+ * Polls until the condition holds. ACP sends no event when an MCP tool is registered, so the test asks again. The
+ * 30 s bound only turns a server that never answers into a failure: no assertion depends on how long the wait takes.
+ */
+async function waitUntil(condition: () => Promise<boolean>): Promise<void> {
+	const deadline = Date.now() + 30_000;
+	while (!(await condition())) {
+		if (Date.now() > deadline) throw new Error("the condition did not hold within 30 seconds");
+		await Bun.sleep(20);
+	}
+}
+
 describe("MCP tool name collision", () => {
 	it("with mcp.toolNameCollision error, session/new fails and names the tool and both servers", async () => {
 		const home = await contract.home({ toolNameCollision: "error" });
-		const child = await contract.child(home);
+		const child = await contract.child(home, { env: WAIT_FOR_ALL_MCP_SERVERS });
 		await child.connection.initialize({ protocolVersion: 1, clientCapabilities: {} });
 
 		const error = await rejectionOf(
@@ -36,7 +62,7 @@ describe("MCP tool name collision", () => {
 
 	it("with keep-first, upstream's default, the session starts, lists one tool and runs the first server's", async () => {
 		const home = await contract.home({ toolNameCollision: "keep-first" });
-		const child = await contract.child(home);
+		const child = await contract.child(home, { env: WAIT_FOR_ALL_MCP_SERVERS });
 		await child.connection.initialize({ protocolVersion: 1, clientCapabilities: {} });
 		const { sessionId } = await child.connection.newSession({ cwd: home.workspace, mcpServers: COLLIDING_SERVERS });
 
@@ -55,5 +81,32 @@ describe("MCP tool name collision", () => {
 		expect(response.stopReason).toBe("end_turn");
 		expect(toolResultTexts(home.model.requests[1])).toEqual(["foo.bar: hi"]);
 		expect(logLines(home.base).some(line => line.includes("keeping stable winner"))).toBe(true);
+	});
+
+	it("with the default window, session/new returns with no error before a slow server answers, and the tool appears once it does", async () => {
+		const home = await contract.home({ toolNameCollision: "error" });
+		// The server answers only after this file exists, so the gate, not the window, keeps its tool out of the session.
+		const gate = path.join(home.base, "slow-server.gate");
+		// No window override: the default applies, as it does for a Desktop that passes nothing.
+		const child = await contract.child(home);
+		await child.connection.initialize({ protocolVersion: 1, clientCapabilities: {} });
+
+		let sessionId = "";
+		try {
+			({ sessionId } = await child.connection.newSession({
+				cwd: home.workspace,
+				mcpServers: [{ name: "foo.bar", command: process.execPath, args: [MCP_FIXTURE, "foo.bar", gate], env: [] }],
+			}));
+			// The server has not answered, so no tool is listed, and session/new did not fail.
+			expect(await listedEchoes(child, sessionId)).toEqual([]);
+		} finally {
+			// The server waits for this file. Writing it on every path lets the server exit, even if an assertion failed.
+			await Bun.write(gate, "");
+		}
+
+		await waitUntil(async () => (await listedEchoes(child, sessionId)).length === 1);
+		const { tools } = await child.connection.extMethod("_xsec/session/capabilities", { sessionId });
+		const echoes = (tools as { name: string; description: string }[]).filter(tool => tool.name === COLLIDING_TOOL);
+		expect(echoes[0].description).toContain("foo.bar");
 	});
 });

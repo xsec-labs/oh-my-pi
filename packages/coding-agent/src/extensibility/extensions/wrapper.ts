@@ -27,7 +27,7 @@ import { getApprovalGrants } from "../../tools/approval-cache";
 import { withToolApprovalScope } from "../../tools/approval-scope";
 import { defaultLoadModeForToolName } from "../../tools/essential-tools";
 import { withFileMutationSession } from "../../tools/file-write-fallback";
-import { hookSecretsOf, restoreHookArgs } from "../../xsec/secret-tool-hook";
+import { hookSecretsOf, protectHookRevision, restoreCallArgs } from "../../xsec/secret-tool-hook";
 import { normalizeToolEventInput, resolveToolEventInput } from "../tool-event-input";
 import { applyToolProxy } from "../tool-proxy";
 import type { ExtensionRunner } from "./runner";
@@ -264,7 +264,7 @@ export class ExtensionToolWrapper<TParameters extends TSchema = TSchema, TDetail
 		}
 		const loopEmittedToolCall = this.runner.consumeToolCallEmitted(toolCallId, this.tool.name);
 		// Restore placeholders in a call the loop did not dispatch, before any gate or hook sees it.
-		if (!loopDispatchedToolCall) params = restoreHookArgs(hookSecretsOf(this.runner), params);
+		if (!loopDispatchedToolCall) params = restoreCallArgs(this.runner, params);
 		// Resolve approval settings up front. A `deny` on the original input short-circuits before the
 		// runner is touched — an already-denied tool never emits `tool_call` — while the full gate below
 		// re-resolves against the (possibly revised) input so a handler cannot rewrite into a denied or
@@ -344,10 +344,11 @@ export class ExtensionToolWrapper<TParameters extends TSchema = TSchema, TDetail
 			}
 		}
 		if (!loopDispatchedToolCall) {
+			// TTSR judges the placeholder form, as the loop does: its match excerpts can reach the model.
 			const preflight = await this.runner.runToolCallPreflightBefore?.(
 				toolCallId,
 				this.tool,
-				effectiveParams,
+				protectHookRevision(hookSecretsOf(this.runner), effectiveParams),
 				context,
 			);
 			if (preflight?.block) {

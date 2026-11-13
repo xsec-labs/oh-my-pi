@@ -1,6 +1,7 @@
 /**
  * A stand-in approval extension for the contract tests. On load it registers with the test's bridge, then
- * asks the bridge before every tool call and blocks the call when the bridge refuses it. It is a fixture
+ * asks the bridge before every tool call. It blocks the call when the bridge refuses it, and runs it with the
+ * input the bridge gives when the bridge revises it. It is a fixture
  * written for this suite, not one of Desktop's extensions.
  *
  * It declares the two shapes it uses instead of importing OMP's types. A type import from OMP's source made
@@ -14,8 +15,9 @@ interface ToolCallEvent {
 }
 
 interface ToolCallResult {
-	block: boolean;
-	reason: string;
+	block?: boolean;
+	reason?: string;
+	input?: Record<string, unknown>;
 }
 
 interface ExtensionApi {
@@ -25,6 +27,7 @@ interface ExtensionApi {
 interface Decision {
 	allow: boolean;
 	reason?: string;
+	input?: Record<string, unknown>;
 }
 
 async function post(base: string, pathname: string, body: unknown): Promise<Response> {
@@ -42,7 +45,7 @@ export default async function approvalGate(pi: ExtensionApi): Promise<void> {
 	pi.on("tool_call", async event => {
 		const response = await post(bridge, "/approve", { toolName: event.toolName, input: event.input });
 		const decision = (await response.json()) as Decision;
-		if (decision.allow) return undefined;
+		if (decision.allow) return decision.input === undefined ? undefined : { input: decision.input };
 		return { block: true, reason: decision.reason ?? "refused by the approval gate" };
 	});
 }

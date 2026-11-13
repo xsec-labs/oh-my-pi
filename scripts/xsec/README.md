@@ -20,6 +20,7 @@ Fork code lives under prefixes upstream does not use, so merging upstream never 
 
 - `packages/coding-agent/src/xsec/` for implementation
 - `packages/coding-agent/test/xsec/` for tests
+  - Contract fixtures in `test/xsec/contract/fixtures/` import nothing from OMP's source, types included: in source mode (`XSEC_CONTRACT_OMP` unset), a type import from OMP's source made the child fail its next prompt with `Missing 'default' export` for the browser prelude. Each fixture declares the shapes it uses itself.
 - `scripts/xsec/` for CI scripts
 - `.github/workflows/xsec-*.yml` for workflows
 
@@ -132,6 +133,16 @@ Each entry is a case where the ACP client does not get the restored text, and wh
 
 - **Masking turned on mid-block.** A placeholder that starts before the obfuscator is set reaches the client as written. The text sent before the switch was passed through unchanged, and only the text after it is restored.
 - **Masking turned off, or the obfuscator replaced, mid-block.** The restorer keeps the block's held text and its sent count from the old obfuscator, so the client can get text out of order, lose some of it, or get a fragment of a placeholder. Not fixed in this change.
+
+## Known gaps in masking cost
+
+`SecretObfuscator.obfuscate` (`packages/coding-agent/src/secrets/obfuscator.ts`) grows faster than linearly with the number of matches. `bun scripts/xsec/masking-scaling.ts` measures it on synthetic text, and a child that runs past its 300 s budget is reported as stopped. The times below are single runs on a shared 4-vCPU container, and each one names its checkout. The obfuscator is the same at xsec 691b4c2b, 18949c94 and this branch (`packages/coding-agent/src/secrets` is unchanged), so the line numbers hold at all three. A follow-up change will batch the per-match copy and cache the search in `emitChunk`. Its effect is not measured in this repository, so the three items below are still treated as quadratic.
+
+- **Replace mode.** The per-match copy with `replaceRange` also runs in replace mode, at `obfuscator.ts` lines 905 to 913, 1222 to 1223 and 1488 to 1489. The follow-up leaves them alone. Desktop masks in obfuscate mode, and in replace mode a match reads text that an earlier edit already changed (`replaceEnd`, lines 870 to 880), so batching those edits needs an equality test of its own. The script runs obfuscate mode only, so replace mode has no measurements yet.
+- **Matches over existing placeholders.** Each match is checked against every placeholder range already in the string (`obfuscator.ts` lines 1792 and 1873 to 1941; `placeholder-scan.ts` lines 113 and 241), so the time grows with matches times placeholders. At checkout dd362611, `bun scripts/xsec/masking-scaling.ts --shapes regex-after-placeholders --sizes 1000,4000,8000` masks 8,000 new matches in a text that already holds 8,000 placeholders in 9.0 s (8,984.6 ms). The 1,000 and 4,000 rows of the same run took 172.6 ms and 2,483.5 ms.
+- **One pass per plain secret.** Each plain secret makes its own full pass over the text (`#replaceOutsidePlaceholdersTracked`, `obfuscator.ts` lines 1631 to 1670). At checkout dd362611, `bun scripts/xsec/masking-scaling.ts --shapes plain-distinct --sizes 4000` masks 4,000 distinct plain secrets in 68.6 s (68,565.8 ms over 362,890 input characters). From 1,000 to 4,000 secrets the time grows about cubically (977.7 ms to 69,141.7 ms at checkout 691b4c2b), so it grows with the number of secrets times the length of the text.
+
+So masking is not linear in matches: matches over existing placeholders and passes per secret are quadratic, and replace mode has no measurement yet.
 
 ## Working locally
 

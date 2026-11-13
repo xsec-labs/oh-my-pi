@@ -96,3 +96,15 @@ describe("masking outside the messages", () => {
 		expect(maskOutboundText(undefined, `in ${FOLDER}`)).toBe(`in ${FOLDER}`);
 	});
 });
+
+describe("masking a context that is already masked", () => {
+	it("changes nothing, so a later pass sends the placeholders the first pass wrote, not new ones", () => {
+		const obfuscator = new SecretObfuscator([{ type: "plain", content: FOLDER }]);
+		const once = maskOutboundContext(obfuscator, context);
+		const twice = maskOutboundContext(obfuscator, once);
+
+		// A pass that rewrote a placeholder would send the model a token the session cannot restore.
+		expect(twice).toEqual(once);
+		expect(obfuscator.deobfuscate(twice.systemPrompt?.join("\n") ?? "")).toBe(SYSTEM_PROMPT.join("\n"));
+	});
+});

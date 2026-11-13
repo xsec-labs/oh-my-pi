@@ -21,8 +21,8 @@ export function isXsecExtMethod(method: string): boolean {
 }
 
 /**
- * Runs an `_xsec/` extension method. An unknown method throws the error upstream's
- * `extMethod` throws for an unknown method, so clients see the same failure either way.
+ * Runs an `_xsec/` extension method. An `_xsec/` method this fork does not implement is
+ * method-not-found (-32601), so a client can tell a missing method from a failed one.
  */
 export async function handleXsecExtMethod(
 	method: string,
@@ -37,7 +37,7 @@ export async function handleXsecExtMethod(
 		case SESSION_GOAL_CONTROL_METHOD:
 			return await sessionGoalControl(params, lookupSession);
 		default:
-			throw new Error(`Unknown ACP ext method: ${method}`);
+			throw RequestError.methodNotFound(method);
 	}
 }
 

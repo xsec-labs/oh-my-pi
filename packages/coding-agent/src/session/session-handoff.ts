@@ -13,7 +13,7 @@ import type { Message, Model, ServiceTier, SimpleStreamOptions } from "@oh-my-pi
 import { logger, Snowflake } from "@oh-my-pi/pi-utils";
 import type { ModelRegistry } from "../config/model-registry";
 import type { Settings } from "../config/settings";
-import { obfuscateProviderContext } from "../secrets/message-transform";
+import { maskOutboundContext } from "../xsec/outbound-context";
 import type { SecretObfuscator } from "../secrets/obfuscator";
 import type { HandoffResult, SessionHandoffOptions } from "./agent-session-types";
 import type { SessionManager } from "./session-manager";
@@ -172,7 +172,7 @@ export class SessionHandoff {
 				model.provider,
 			);
 			const rawHandoffText = await generateHandoffFromContext(
-				obfuscateProviderContext(this.#host.obfuscator(), handoffContext),
+				maskOutboundContext(this.#host.obfuscator(), handoffContext),
 				model,
 				{
 					streamOptions: handoffStreamOptions,

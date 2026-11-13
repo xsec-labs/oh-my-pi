@@ -127,6 +127,16 @@ A registry built without settings follows the process's global settings. With no
 - **Extension dynamic managers.** A provider that an extension registers with `fetchDynamicModels` runs its own function on every discovery pass, session start included. The limit does not filter these managers, and the guard does not see the function's requests. Desktop's extensions register no such provider today.
 - **Cursor.** In `configured` mode, Cursor discovery runs only when `cursor` is listed in `models.yml`. It then calls the configured base URL, or `CURSOR_DEFAULT_BASE_URL`, with the global `fetch`, and with an HTTP/2 client when that fails. Neither goes through the guard.
 
+## Masking limits
+
+- Tool and function names (`tools[].name`, and the names the model writes in tool calls) are not masked: providers take function names made of `[a-zA-Z0-9_-]` only, the factory-droid provider here sanitizes tool names to that set (`packages/ai/src/providers/factory-droid/tool-names.ts`), and every placeholder starts with `$$`, which is outside that set.
+- Schema strings other than `description` (`enum`, `default`, `examples`) are not masked: the agent loop (`packages/agent/src/agent-loop.ts`) validates a call's arguments against the schema before it restores the placeholders, so a masked enum would reject valid calls.
+
+The two ACP entries below are cases where the ACP client does not get the restored text, and why. Masking must not be switched on, off or re-keyed during a session. Desktop sets `secrets.enabled` once, when it starts OMP, so these cases do not arise there.
+
+- **Masking turned on mid-block.** A placeholder that starts before the obfuscator is set reaches the client as written. The text sent before the switch was passed through unchanged, and only the text after it is restored.
+- **Masking turned off, or the obfuscator replaced, mid-block.** The restorer keeps the block's held text and its sent count from the old obfuscator, so the client can get text out of order, lose some of it, or get a fragment of a placeholder. Not fixed in this change.
+
 ## Known gaps in masking cost
 
 `SecretObfuscator.obfuscate` (`packages/coding-agent/src/secrets/obfuscator.ts`) grows faster than linearly with the number of matches. `bun scripts/xsec/masking-scaling.ts` measures it on synthetic text, and a child that runs past its 300 s budget is reported as stopped. The times below are single runs on a shared 4-vCPU container, and each one names its checkout. The obfuscator is the same at xsec 691b4c2b, 18949c94 and this branch (`packages/coding-agent/src/secrets` is unchanged), so the line numbers hold at all three. A follow-up change will batch the per-match copy and cache the search in `emitChunk`. Its effect is not measured in this repository, so the three items below are still treated as quadratic.

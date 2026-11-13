@@ -1,9 +1,10 @@
-import { describe, expect, it, setDefaultTimeout } from "bun:test";
+import { describe, expect, setDefaultTimeout } from "bun:test";
 import { rejectionOf, useContractSession } from "./harness";
 
 setDefaultTimeout(120_000);
 
 const contract = useContractSession();
+const { it } = contract;
 const GOAL_GET = "_xsec/session/goal/get";
 const GOAL_CONTROL = "_xsec/session/goal/control";
 const INVALID_REQUEST_CODE = -32600;

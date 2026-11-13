@@ -1,7 +1,7 @@
 import { describe, expect, it, setDefaultTimeout } from "bun:test";
 import * as fs from "node:fs";
 import * as path from "node:path";
-import { type ContractHome, rejectionOf, useContractSession, userMessageTexts } from "./harness";
+import { type ContractHome, createContractHome, rejectionOf, useContractSession, userMessageTexts } from "./harness";
 
 setDefaultTimeout(120_000);
 
@@ -166,5 +166,11 @@ describe("secrets.disabledBuiltinPatterns over ACP", () => {
 		const text = sentUserText(home, "shapes off");
 		for (const shape of SHAPES) expect(text).toContain(shape);
 		expect(placeholdersIn(text)).toHaveLength(0);
+	});
+});
+
+describe("the contract harness", () => {
+	it("refuses masking and secrets in one home, so one cannot silently drop the other's rules", async () => {
+		await expect(createContractHome({ masking: {}, secrets: "[]\n" })).rejects.toThrow("not both");
 	});
 });

@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it } from "bun:test";
 import { redactSensitiveCredentials } from "@oh-my-pi/pi-ai/providers/transform-messages";
+import { builtinCredentialSecretEntries } from "@oh-my-pi/pi-coding-agent/secrets";
 import { CREDENTIAL_PATTERNS } from "@oh-my-pi/pi-coding-agent/secrets/patterns";
 import {
 	credentialShapeRedaction,
@@ -82,7 +83,7 @@ describe("pi-ai's credential rewrite", () => {
 // With no pattern disabled and secrets.enabled off, each call site behaves as upstream did before the fork.
 describe("default behaviour of the four upstream call sites", () => {
 	it("builds the obfuscator from every built-in entry (secrets/index.ts)", () => {
-		const entries = CREDENTIAL_PATTERNS.map(pattern => ({ friendlyName: pattern.name }));
+		const entries = builtinCredentialSecretEntries();
 
 		expect(enabledBuiltinSecretEntries(entries)).toEqual(entries);
 	});

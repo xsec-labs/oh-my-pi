@@ -1,4 +1,4 @@
-import { describe, expect, it, setDefaultTimeout } from "bun:test";
+import { describe, expect, setDefaultTimeout } from "bun:test";
 import {
 	agentMessageText,
 	type AcpChild,
@@ -11,6 +11,7 @@ import {
 setDefaultTimeout(120_000);
 
 const contract = useContractSession();
+const { it } = contract;
 const CONTINUE = { xsec: { continue: true } };
 
 async function openSession(child: AcpChild, home: ContractHome): Promise<string> {

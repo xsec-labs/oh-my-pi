@@ -187,9 +187,9 @@ import {
 	deobfuscateSessionContext,
 	deobfuscateToolArguments,
 	obfuscateMessages,
-	obfuscateProviderContext,
 	type SecretObfuscator,
 } from "./secrets";
+import { maskOutboundContext, maskOutboundText } from "./xsec/outbound-context";
 import {
 	AgentSession,
 	type InitialRetryFallbackState,
@@ -4717,7 +4717,7 @@ async function createAgentSessionScoped(options: CreateAgentSessionOptions): Pro
 		const createTransformProviderContext = (journal?: DateCwdReminderJournal) => {
 			const dateCwdReminder = new DateCwdReminderInjector(journal);
 			return async (context: Context, transformModel: Model): Promise<Context> => {
-				let transformed = obfuscator ? obfuscateProviderContext(obfuscator, context) : context;
+				let transformed = maskOutboundContext(obfuscator, context);
 				// The archive was sized for the model active at the last context build; a model switch may have lowered the budget.
 				transformed = capArchiveFrameBytes(transformed, transformModel);
 				transformed = await snapcompactInline.transform(transformed, transformModel);
@@ -4736,7 +4736,7 @@ async function createAgentSessionScoped(options: CreateAgentSessionOptions): Pro
 				return dateCwdReminder.transform(
 					transformed,
 					formatLocalCalendarDate(),
-					normalizePromptPath(sessionManager.getCwd()),
+					maskOutboundText(obfuscator, normalizePromptPath(sessionManager.getCwd())),
 				);
 			};
 		};

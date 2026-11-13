@@ -41,6 +41,8 @@ export interface ContractHomeOptions {
 	workerThreads?: number;
 	/** `mcp.toolNameCollision` in the settings overlay. Desktop passes `error`, which is the default here. */
 	toolNameCollision?: "keep-first" | "error";
+	/** `secrets.enabled` in the settings overlay. Left out, the setting keeps its default, off. */
+	secretsEnabled?: boolean;
 	/**
 	 * Desktop's masking, as its `--config` overlay and global `secrets.yml` write it: `secrets.enabled` is on, with the
 	 * named built-in patterns off. Left out, masking is off, as it is by default in omp.
@@ -55,6 +57,10 @@ export interface ContractHomeOptions {
 
 /** Starts a fresh home for one test: its own agent directory, workspace, models file and settings overlay. */
 export async function createContractHome(options: ContractHomeOptions = {}): Promise<ContractHome> {
+	// Masking writes the home's secrets.yml and `secrets` replaces it, so giving both would drop the masking rules.
+	if (options.masking !== undefined && options.secrets !== undefined) {
+		throw new Error("createContractHome takes masking or secrets, not both: both write secrets.yml");
+	}
 	const goalEnabled = options.goalEnabled ?? true;
 	const discovery = options.discovery ?? "configured";
 	const toolNameCollision = options.toolNameCollision ?? "error";
@@ -93,11 +99,12 @@ export async function createContractHome(options: ContractHomeOptions = {}): Pro
 			"goal:",
 			`  enabled: ${goalEnabled}`,
 			...(options.workerThreads === undefined ? [] : ["task:", `  workerThreads: ${options.workerThreads}`]),
-			...(masking === undefined && options.secrets === undefined
+			// One `secrets:` block. Masking or given secrets.yml content turns secrets on, and `secretsEnabled` sets it explicitly.
+			...(masking === undefined && options.secrets === undefined && options.secretsEnabled === undefined
 				? []
 				: [
 						"secrets:",
-						"  enabled: true",
+						`  enabled: ${masking !== undefined || options.secrets !== undefined || options.secretsEnabled === true}`,
 						...(masking === undefined
 							? []
 							: [`  disabledBuiltinPatterns: ${JSON.stringify(masking.disabledBuiltinPatterns ?? [])}`]),

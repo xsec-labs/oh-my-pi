@@ -1,9 +1,10 @@
-import { describe, expect, it, setDefaultTimeout } from "bun:test";
+import { describe, expect, setDefaultTimeout } from "bun:test";
 import { rejectionOf, useContractSession } from "./harness";
 
 setDefaultTimeout(120_000);
 
 const contract = useContractSession();
+const { it } = contract;
 const CAPABILITIES = "_xsec/session/capabilities";
 
 describe("_xsec/session/capabilities", () => {

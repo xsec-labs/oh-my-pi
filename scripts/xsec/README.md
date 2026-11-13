@@ -172,6 +172,8 @@ The `slice chars` column of the script counts the receiver length of each `slice
 
 So masking is not linear in matches: matches over existing placeholders (the `regex-after-placeholders` rows) and passes per secret (the `plain-distinct` rows) stay quadratic, and replace mode has no measurement yet.
 
+The occurrence cursor commit (f82a3280) came after b9edf52f. The same script on its working tree gave `plain-distinct` 5,589.1 ms at 4,000 matches (exponent 2.00) and 99,865.5 ms at 16,000 matches (2.08), against 5,972.6 and 108,861.2 ms in the table. The `regex` rows do not use the cursor, and their 16,000-match time moved by 21 percent (216.7 ms, against 178.7 ms), so these differences are noise. The table keeps the b9edf52f column.
+
 ## Working locally
 
 ```sh

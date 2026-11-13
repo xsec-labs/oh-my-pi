@@ -1,4 +1,5 @@
 import * as crypto from "node:crypto";
+import { obfuscateMinLength } from "../xsec/secret-min-length";
 import type { SecretEntry } from "./obfuscator";
 import type { RegistryRevision } from "./registry-revision";
 import { ensureDistinctReplacement, generateDeterministicReplacement, REPLACEMENT_CHARS } from "./replacement";
@@ -14,9 +15,6 @@ const HASH_CHARS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
 // secret when the configured secret set or its ordering changes across sessions.
 const HASH_LEN = 12;
 const MAX_FRIENDLY_NAME_LEN = 32;
-// Plain/regex obfuscate matches shorter than this are toned down (never placed
-// behind a reversible placeholder) to avoid redacting small words/fragments.
-export const MIN_OBFUSCATE_SECRET_LEN = 8;
 
 // Per-process fallback key used when a caller does not supply a persisted
 // per-install key. It is random (never shipped in source), so model-visible
@@ -204,7 +202,7 @@ export function labelCollidesWithAnySecret(sanitizedLabel: string, values: Reado
 export function secretEntryNeedsPlaceholderKey(entry: SecretEntry): boolean {
 	if ((entry.mode ?? "obfuscate") === "obfuscate") {
 		if (entry.type === "regex") return true;
-		return entry.content.length >= MIN_OBFUSCATE_SECRET_LEN;
+		return entry.content.length >= obfuscateMinLength();
 	}
 	return entry.type === "regex" && entry.replacement === undefined;
 }

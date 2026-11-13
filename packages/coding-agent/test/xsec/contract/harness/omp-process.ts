@@ -47,9 +47,10 @@ export interface ContractHomeOptions {
 	secretsEnabled?: boolean;
 	/**
 	 * Desktop's masking, as its `--config` overlay and global `secrets.yml` write it: `secrets.enabled` is on, with the
-	 * named built-in patterns off. Left out, masking is off, as it is by default in omp.
+	 * named built-in patterns off, and `minObfuscateLength` (`secrets.minObfuscateLength`) when given. Left out, masking
+	 * is off, as it is by default in omp.
 	 */
-	masking?: { disabledBuiltinPatterns?: readonly string[]; secretsYml?: string };
+	masking?: { disabledBuiltinPatterns?: readonly string[]; minObfuscateLength?: number; secretsYml?: string };
 	/**
 	 * The home's `secrets.yml` (a YAML array of entries). Given, the overlay turns `secrets.enabled` on, which is
 	 * how Desktop turns masking on. Left out, masking is off.
@@ -113,6 +114,9 @@ export async function createContractHome(options: ContractHomeOptions = {}): Pro
 						...(masking === undefined
 							? []
 							: [`  disabledBuiltinPatterns: ${JSON.stringify(masking.disabledBuiltinPatterns ?? [])}`]),
+						...(masking?.minObfuscateLength !== undefined
+							? [`  minObfuscateLength: ${masking.minObfuscateLength}`]
+							: []),
 					]),
 			"",
 		].join("\n"),

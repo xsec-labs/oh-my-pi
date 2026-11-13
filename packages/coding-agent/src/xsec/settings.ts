@@ -6,6 +6,7 @@
 import { effect, register } from "../config/registry";
 import { MCP_TOOL_NAME_COLLISION_MODES, setMCPToolNameCollisionMode } from "./mcp-tool-collision";
 import { setDisabledBuiltinSecretPatterns } from "./secret-builtin-patterns";
+import { DEFAULT_MIN_OBFUSCATE_LENGTH, setMinObfuscateLength } from "./secret-min-length";
 
 /**
  * `keep-first` (default): warn and keep the stable winner, as upstream does. `error`: fail tool loading.
@@ -46,3 +47,15 @@ export const cfgSecretsDisabledBuiltinPatterns = register({
 	default: NO_BUILTIN_PATTERNS,
 });
 effect(cfgSecretsDisabledBuiltinPatterns, setDisabledBuiltinSecretPatterns);
+
+/**
+ * The shortest plain or regex match, in UTF-16 units, the obfuscator masks. Default 8, upstream's value. Any value
+ * that is not an integer of 1 or more makes building the obfuscator throw, so the session does not start. The
+ * behaviour lives in `./secret-min-length.ts`.
+ */
+export const cfgSecretsMinObfuscateLength = register({
+	id: "secrets.minObfuscateLength",
+	type: "number",
+	default: DEFAULT_MIN_OBFUSCATE_LENGTH,
+});
+effect(cfgSecretsMinObfuscateLength, setMinObfuscateLength);

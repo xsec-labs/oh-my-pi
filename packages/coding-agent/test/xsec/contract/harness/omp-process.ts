@@ -72,9 +72,10 @@ export async function createContractHome(options: ContractHomeOptions = {}): Pro
 
 	// The settings Desktop passes with `--config`: discovery contacts only the configured providers, and a
 	// tool name collision is an error. Goal mode is written out so a test can turn it off.
+	// Masking is on the way Desktop turns it on, with a secrets.yml beside the overlay. A home without rules gets an empty list.
 	const masking = options.masking;
-	if (masking?.secretsYml !== undefined) {
-		fs.writeFileSync(path.join(dirs.agentDir, "secrets.yml"), masking.secretsYml);
+	if (masking !== undefined) {
+		fs.writeFileSync(path.join(dirs.agentDir, "secrets.yml"), masking.secretsYml ?? "[]\n");
 	}
 	const configPath = path.join(base, "config.yml");
 	fs.writeFileSync(

@@ -128,8 +128,8 @@ A registry built without settings follows the process's global settings. With no
 
 ## Masking limits
 
-- Tool and function names (`tools[].name`, and the names the model writes in tool calls) are not masked: a provider function name must match `[a-zA-Z0-9_-]`, and the placeholder contains `$` and `:`, so it cannot be one.
-- Schema strings other than `description` (`enum`, `default`, `examples`) are not masked: the arguments of a call are validated against the schema before placeholders are restored, so a masked enum would reject valid calls.
+- Tool and function names (`tools[].name`, and the names the model writes in tool calls) are not masked: providers accept only function names made of `[a-zA-Z0-9_-]` (the openai-codex and factory-droid providers sanitize tool names to that set), and every placeholder starts with `$$`, which is outside that set.
+- Schema strings other than `description` (`enum`, `default`, `examples`) are not masked: the agent loop validates a call's arguments against the schema before it restores the placeholders, so a masked enum would reject valid calls.
 
 ## Working locally
 

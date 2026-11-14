@@ -1,4 +1,6 @@
+import { createOccurrenceCursor } from "../xsec/occurrence-cursor";
 import { obfuscateMinLength } from "../xsec/secret-min-length";
+import { applyTextEdits, isDescendingDisjoint, type TextEdit } from "../xsec/text-edits";
 import {
 	buildHashBase,
 	buildKeyedReplacementRun,
@@ -832,6 +834,19 @@ export class SecretObfuscator {
 			if (!this.#entryMayMatch(entry, result)) continue;
 			entry.regex.lastIndex = 0;
 			const matches = this.#collectRegexMatches(result, entry.regex, entry.mode, origin, entry.replacement);
+			// Obfuscate-mode edits are applied in one pass after the loop (package 14b). Every span is then read from the
+			// text this entry found, which is also what edit-by-edit application reads when the matches are disjoint.
+			// Overlapping matches keep the edit-by-edit path.
+			const batch: TextEdit[] | undefined =
+				entry.mode === "obfuscate" && isDescendingDisjoint(matches) ? [] : undefined;
+			const writeMatch = (start: number, end: number, replacement: string, tags: string): void => {
+				if (batch !== undefined) {
+					batch.push({ start, end, text: replacement, origin: tags });
+					return;
+				}
+				result = replaceRange(result, start, end, replacement);
+				origin = replaceRange(origin, start, end, tags);
+			};
 
 			for (const match of matches) {
 				if (entry.mode === "replace") {
@@ -942,8 +957,7 @@ export class SecretObfuscator {
 						const span = result.slice(match.start, match.end);
 						const spanOrigin = origin.slice(match.start, match.end);
 						const obfuscated = this.#obfuscateOutsidePlaceholdersTracked(span, spanOrigin, entry.friendlyName);
-						result = replaceRange(result, match.start, match.end, obfuscated.text);
-						origin = replaceRange(origin, match.start, match.end, obfuscated.origin);
+						writeMatch(match.start, match.end, obfuscated.text, obfuscated.origin);
 						continue;
 					}
 					// obfuscate mode — get or create stable index
@@ -959,10 +973,10 @@ export class SecretObfuscator {
 					}
 					const mapping = this.#obfuscateMappings.get(index)!;
 					const placeholder = this.#placeholderForCurrentInput(mapping.placeholder);
-					result = replaceRange(result, match.start, match.end, placeholder);
-					origin = replaceRange(origin, match.start, match.end, "F".repeat(placeholder.length));
+					writeMatch(match.start, match.end, placeholder, "F".repeat(placeholder.length));
 				}
 			}
+			if (batch !== undefined) ({ text: result, origin } = applyTextEdits(result, origin, batch));
 			if (entry.mode === "replace") {
 				for (const secretValue of this.#collectRegexSecretValues(result)) {
 					this.#currentRegexSecretValues.add(secretValue);
@@ -1642,14 +1656,16 @@ export class SecretObfuscator {
 		let outText = "";
 		let outOrigin = "";
 		let pending = 0;
+		// The cursor searches again only when its last answer no longer holds for the query (package 14b).
+		const occurrences = createOccurrenceCursor(text, search);
 		const emitChunk = (from: number, to: number): void => {
 			let last = from;
-			let idx = text.indexOf(search, from);
+			let idx = occurrences.next(from);
 			while (idx !== -1 && idx + search.length <= to) {
 				outText += text.slice(last, idx) + replacement;
 				outOrigin += origin.slice(last, idx) + tag.repeat(replacement.length);
 				last = idx + search.length;
-				idx = text.indexOf(search, last);
+				idx = occurrences.next(last);
 			}
 			outText += text.slice(last, to);
 			outOrigin += origin.slice(last, to);

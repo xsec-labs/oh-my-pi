@@ -24,6 +24,8 @@
  * all of it on the first slice, so the sum is the copy work, though it counts both
  * slices of each replacement, so it is about twice the characters copied. For a flat
  * string (the plain path's input) V8 copies nothing, so the sum overstates that path.
+ * Since package 14b the regex path slices the flat input too, so there the sum no longer
+ * measures copy work either.
  * `indexOfChars` adds up the characters `indexOf` scans, which is real work on both
  * paths. The checkout is never changed.
  *

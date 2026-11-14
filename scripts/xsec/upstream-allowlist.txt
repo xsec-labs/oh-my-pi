@@ -16,7 +16,7 @@ packages/coding-agent/src/config/model-registry.ts 15 packages/coding-agent/test
 packages/coding-agent/src/mcp/tool-bridge.ts 2 packages/coding-agent/test/mcp*.test.ts packages/coding-agent/test/mcp/*.test.ts
 packages/coding-agent/src/modes/acp/acp-agent.ts 27 packages/coding-agent/test/acp-*.test.ts
 packages/coding-agent/src/secrets/index.ts 3 packages/coding-agent/test/secrets-obfuscator.test.ts packages/coding-agent/test/secrets-prefilter.test.ts
-packages/coding-agent/src/secrets/obfuscator.ts 7 packages/coding-agent/test/secrets-obfuscator.test.ts packages/coding-agent/test/secrets-fast-paths.test.ts packages/coding-agent/test/secrets-prefilter.test.ts
+packages/coding-agent/src/secrets/obfuscator.ts 40 packages/coding-agent/test/secrets-obfuscator.test.ts packages/coding-agent/test/secrets-fast-paths.test.ts packages/coding-agent/test/secrets-prefilter.test.ts
 packages/coding-agent/src/secrets/placeholder.ts 6 packages/coding-agent/test/secrets-obfuscator.test.ts packages/coding-agent/test/secrets-prefilter.test.ts
 packages/coding-agent/src/secrets/settings.ts 4 packages/coding-agent/test/secrets-obfuscator.test.ts
 packages/coding-agent/src/sdk.ts 13 packages/coding-agent/test/date-cwd-reminder.test.ts packages/coding-agent/test/secrets-*.test.ts packages/coding-agent/test/sdk-*.test.ts packages/coding-agent/test/sdk-session-isolation.test.ts

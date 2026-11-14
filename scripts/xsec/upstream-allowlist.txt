@@ -14,7 +14,7 @@
 packages/coding-agent/src/config/all-settings.ts 2 packages/coding-agent/test/config/*.test.ts packages/coding-agent/test/settings-*.test.ts packages/coding-agent/test/config/settings-registry.test.ts
 packages/coding-agent/src/config/model-registry.ts 15 packages/coding-agent/test/config/model-registry.test.ts packages/coding-agent/test/model-registry*.test.ts packages/coding-agent/test/model-discovery.test.ts packages/coding-agent/test/model-resolver.test.ts
 packages/coding-agent/src/mcp/tool-bridge.ts 2 packages/coding-agent/test/mcp*.test.ts packages/coding-agent/test/mcp/*.test.ts
-packages/coding-agent/src/modes/acp/acp-agent.ts 15 packages/coding-agent/test/acp-*.test.ts
+packages/coding-agent/src/modes/acp/acp-agent.ts 27 packages/coding-agent/test/acp-*.test.ts
 packages/coding-agent/src/secrets/index.ts 3 packages/coding-agent/test/secrets-obfuscator.test.ts packages/coding-agent/test/secrets-prefilter.test.ts
 packages/coding-agent/src/secrets/obfuscator.ts 40 packages/coding-agent/test/secrets-obfuscator.test.ts packages/coding-agent/test/secrets-fast-paths.test.ts packages/coding-agent/test/secrets-prefilter.test.ts
 packages/coding-agent/src/secrets/placeholder.ts 6 packages/coding-agent/test/secrets-obfuscator.test.ts packages/coding-agent/test/secrets-prefilter.test.ts

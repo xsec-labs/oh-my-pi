@@ -174,6 +174,19 @@ So masking is not linear in matches: matches over existing placeholders (the `re
 
 The occurrence cursor commit (f82a3280) came after b9edf52f. The same script on its working tree gave `plain-distinct` 5,589.1 ms at 4,000 matches (exponent 2.00) and 99,865.5 ms at 16,000 matches (2.08), against 5,972.6 and 108,861.2 ms in the table. The `regex` rows do not use the cursor, and their 16,000-match time moved by 21 percent (216.7 ms, against 178.7 ms), so these differences are noise. The table keeps the b9edf52f column.
 
+## Late MCP notes
+
+After `session/new` returns, MCP state can still change: a server that was connecting when the startup window closed, its later connect or failure, and a tool name collision that a refresh finds. `packages/coding-agent/src/xsec/mcp-late-status.ts` reports each one as an `agent_message_chunk`. Each note keeps its text, for clients that only show text, and carries a marker at `content._meta.xsec.mcpNotice`, for clients that act on it:
+
+- `kind: "server_connecting"` and `server`: the server did not connect within the startup window, so its tools are not listed yet.
+- `kind: "server_connected"` and `server`: a server from that set connected. The refresh that adds its tools may land just after this note.
+- `kind: "server_failed"` and `server`: a server from that set failed. Its tools stay unlisted until the client restarts the session, or, for http and sse servers, until it is reauthorized.
+- `kind: "tool_collision"`, with `tool`, `winner`, `loser` and `enforced`: a refresh found two servers minting one tool name. `winner` and `loser` are `server:tool` origins. `enforced` is true when `mcp.toolNameCollision` is `error`, so the tool list was not updated. Otherwise the winner is kept and the loser is not added.
+
+A client should read the marker rather than the text. The notes can arrive in the middle of a prompt turn, so they are not model output. "Connected" can come before the tool refresh that lists the tools, so a client that needs the tool list should wait for it. With `OMP_MCP_STARTUP_TIMEOUT_MS=0`, `session/new` waits for every server, so a session gets no `server_*` notes and only `tool_collision` can occur.
+
+Known gap: a server that fails after the startup window has closed, but before the reporter follows the manager, is not reported. Its tools are simply absent. The variable is read from OMP 18.20 on, and a build without this reporter sends none of these notes. So a client on an older build gets no late notes at all, and a client on this build that sets the variable to 0 gets only `tool_collision`.
+
 ## Working locally
 
 ```sh

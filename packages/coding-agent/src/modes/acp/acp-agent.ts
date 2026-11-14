@@ -101,6 +101,7 @@ import {
 import { canonicalizeMessage } from "@oh-my-pi/pi-tui/chat/thinking-display";
 import { handleXsecExtMethod, isXsecExtMethod, resumeIf } from "../../xsec/acp";
 import { restoreAcpSessionEvents, restoreAcpText, restoredSessionContext } from "../../xsec/acp-secret-stream";
+import { LateMcpReporter } from "../../xsec/mcp-late-status";
 import { createAcpClientBridge } from "./acp-client-bridge";
 import {
 	extractAssistantMessageText,
@@ -392,6 +393,8 @@ type ManagedSessionRecord = {
 	// clients (Zed) cannot drop them as notifications for an unknown session.
 	// `oauthCapable` marks http/sse servers, the only ones `/mcp reauth` can repair.
 	pendingMcpStartupChunks: Array<{ name: string; message: string; oauthCapable: boolean }>;
+	// Late MCP state after session/new returned, bound by #configureMcpServers; see mcp-late-status.ts.
+	lateMcpReporter: LateMcpReporter;
 	promptTurn: PromptTurnState | undefined;
 	promptQueue: PromptQueueState;
 	// Cancellation carriers for client prompts accepted on the wire whose
@@ -1994,6 +1997,9 @@ export class AcpAgent implements Agent {
 			mcpManager: undefined,
 			mcpRefreshChain: undefined,
 			pendingMcpStartupChunks: [],
+			lateMcpReporter: new LateMcpReporter(update =>
+				this.#connection.sessionUpdate({ sessionId: protocolSessionId, update }),
+			),
 			promptTurn: undefined,
 			promptQueue: { promise: Promise.resolve(), release: undefined },
 			liveMessageId: undefined,
@@ -2844,6 +2850,7 @@ export class AcpAgent implements Agent {
 				},
 			});
 		}
+		record.lateMcpReporter.open();
 		await this.#connection.sessionUpdate({
 			sessionId,
 			update: {
@@ -3371,6 +3378,7 @@ export class AcpAgent implements Agent {
 	}
 
 	async #configureMcpServers(record: ManagedSessionRecord, servers: McpServer[]): Promise<void> {
+		record.lateMcpReporter.stop();
 		if (record.mcpManager) {
 			await record.mcpManager.disconnectAll();
 		}
@@ -3403,7 +3411,7 @@ export class AcpAgent implements Agent {
 		const enqueueMcpToolsRefresh = (): Promise<void> => {
 			const run = (record.mcpRefreshChain ?? Promise.resolve()).then(async () => {
 				if (record.mcpManager !== manager) return;
-				await record.session.refreshMCPTools(manager.getTools());
+				await record.lateMcpReporter.observe(() => record.session.refreshMCPTools(manager.getTools()));
 			});
 			record.mcpRefreshChain = run.catch(error => {
 				logger.warn("ACP MCP tool refresh failed", {
@@ -3429,6 +3437,7 @@ export class AcpAgent implements Agent {
 		}
 
 		const result = await manager.connectServers(configs, sources);
+		record.lateMcpReporter.follow(manager, configs);
 		// A client-declared server whose initial connect fails (e.g. an expired
 		// client-owned bearer answering 401 inside the startup window) must not
 		// abort session creation: the record keeps the manager with the failed
@@ -3437,6 +3446,7 @@ export class AcpAgent implements Agent {
 		// through a chunk instead of the session refusing to load.
 		record.mcpManager = manager;
 		await enqueueMcpToolsRefresh();
+		record.lateMcpReporter.arm();
 		// The failure chunk is queued, not sent: `#configureMcpServers` runs
 		// inside `#registerPreparedSession`, before the newSession/loadSession
 		// response has given the client this session id — a notification now

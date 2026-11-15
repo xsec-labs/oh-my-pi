@@ -98,6 +98,10 @@ class ReplayTestSession {
 		return undefined;
 	}
 
+	isFastModeEnabled(): boolean {
+		return false;
+	}
+
 	setClientBridge(_bridge: unknown): void {}
 
 	setMcpServerInstructionsSource(_source: unknown): void {}

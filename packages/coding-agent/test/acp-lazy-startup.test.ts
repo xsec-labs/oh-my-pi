@@ -111,6 +111,9 @@ class LazyFakeSession {
 	}
 
 	setThinkingLevel(): void {}
+	isFastModeEnabled(): boolean {
+		return false;
+	}
 	setSlashCommands(): void {}
 	async setModel(): Promise<void> {}
 	subscribe(): () => void {

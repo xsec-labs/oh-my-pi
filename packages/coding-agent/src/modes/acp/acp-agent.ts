@@ -100,6 +100,7 @@ import {
 } from "../../tts/models";
 import { canonicalizeMessage } from "@oh-my-pi/pi-tui/chat/thinking-display";
 import { handleXsecExtMethod, isXsecExtMethod, resumeIf } from "../../xsec/acp";
+import { buildFastConfigOption, FAST_CONFIG_ID, fastModeMeta, setFastModeOption } from "../../xsec/acp-fast-mode";
 import { restoreAcpSessionEvents, restoreAcpText, restoredSessionContext } from "../../xsec/acp-secret-stream";
 import { LateMcpReporter } from "../../xsec/mcp-late-status";
 import { createAcpClientBridge } from "./acp-client-bridge";
@@ -1210,6 +1211,9 @@ export class AcpAgent implements Agent {
 				break;
 			case THINKING_CONFIG_ID:
 				this.#setThinkingLevelById(record.session, params.value);
+				break;
+			case FAST_CONFIG_ID:
+				setFastModeOption(record.session, params.value);
 				break;
 			default:
 				throw new Error(`Unknown ACP config option: ${params.configId}`);
@@ -2486,6 +2490,7 @@ export class AcpAgent implements Agent {
 					value: this.#toModelId(model),
 					name: model.name,
 					description: `${model.provider}/${model.id}`,
+					_meta: fastModeMeta(model),
 				})),
 			});
 		}
@@ -2500,6 +2505,8 @@ export class AcpAgent implements Agent {
 			),
 			options: this.#buildThinkingOptions(session),
 		});
+		const fastOption = buildFastConfigOption(session);
+		if (fastOption) configOptions.push(fastOption);
 		return configOptions;
 	}
 

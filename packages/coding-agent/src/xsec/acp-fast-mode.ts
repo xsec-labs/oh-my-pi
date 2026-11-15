@@ -45,7 +45,10 @@ export function buildFastConfigOption(session: AgentSession): SessionConfigOptio
 	};
 }
 
-/** Applies a `fast` value. "off" clears the priority tier; "on" sets it, and fails on a model that cannot take it. */
+/**
+ * Applies a `fast` value. "off" clears the fast tier; "on" selects priority and fails on a model that cannot take it.
+ * A session already on a fast tier keeps that tier: "on" never downgrades ultrafast to priority.
+ */
 export function setFastModeOption(session: AgentSession, value: string): void {
 	if (value === FAST_OFF) {
 		if (session.isFastModeEnabled()) session.setFastMode(false);
@@ -54,6 +57,11 @@ export function setFastModeOption(session: AgentSession, value: string): void {
 	if (value !== FAST_ON) {
 		throw new Error(`Unknown ACP fast mode: ${value}`);
 	}
+	const model = session.model;
+	if (!model || !modelSupportsFastMode(model)) {
+		throw new Error("Fast mode is unavailable for the current model.");
+	}
+	if (session.isFastModeEnabled()) return;
 	if (!session.setFastMode(true)) {
 		throw new Error("Fast mode is unavailable for the current model.");
 	}

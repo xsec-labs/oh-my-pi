@@ -81,6 +81,9 @@ function createSession(current: Model): AgentSession {
 		modelRegistry: {
 			getApiKey: async () => "test-key",
 			getAvailable: () => [FAST_MODEL, PLAIN_MODEL],
+			hasConfiguredAuth: () => true,
+			refreshSelectedModelMetadata: async (model: Model) => model,
+			clearSuppressedSelector: () => {},
 		} as never,
 		toolRegistry: new Map(),
 		builtInToolNames: [],
@@ -144,5 +147,35 @@ describe("ACP Fast option", () => {
 		await expect(agent.setSessionConfigOption({ sessionId, configId: "fast", value: "on" })).rejects.toThrow(
 			"Fast mode is unavailable for the current model.",
 		);
+	});
+
+	it("keeps an ultrafast session on ultrafast when On is chosen", async () => {
+		const session = createSession(openai);
+		expect(session.setUltrafastMode(true)).toBe(true);
+		const { agent, sessionId } = await openSession(session);
+
+		const result = await agent.setSessionConfigOption({ sessionId, configId: "fast", value: "on" });
+
+		expect(session.isUltrafastModeEnabled()).toBe(true);
+		expect(result.configOptions.find(option => option.id === "fast")).toMatchObject({ currentValue: "on" });
+	});
+
+	it("withdraws the option on a model that cannot take Fast, and offers it again on return", async () => {
+		const { agent, sessionId, configOptions } = await openSession(createSession(FAST_MODEL));
+		expect(configOptions.find(option => option.id === "fast")).toBeDefined();
+
+		const onPlain = await agent.setSessionConfigOption({
+			sessionId,
+			configId: "model",
+			value: "deepseek/deepseek-v4-pro",
+		});
+		expect(onPlain.configOptions.find(option => option.id === "fast")).toBeUndefined();
+
+		const backOnFast = await agent.setSessionConfigOption({
+			sessionId,
+			configId: "model",
+			value: "anthropic/claude-opus-4-6",
+		});
+		expect(backOnFast.configOptions.find(option => option.id === "fast")).toMatchObject({ currentValue: "off" });
 	});
 });

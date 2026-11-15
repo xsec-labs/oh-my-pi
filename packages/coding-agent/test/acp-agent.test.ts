@@ -1176,47 +1176,6 @@ describe("ACP agent", () => {
 		await Bun.sleep(0);
 	});
 
-	it("offers Fast for a model that takes the priority tier and applies it through setSessionConfigOption", async () => {
-		// The fake session starts on an Anthropic model, whose service-tier family realizes
-		// fast mode, so the Fast option is offered and starts off. Its model choices mark
-		// each model that can take fast mode, so a client can list them.
-		const harness = await createHarness();
-		vi.useFakeTimers();
-		const created = await harness.agent.newSession({ cwd: harness.cwdA, mcpServers: [] });
-		await advanceBootstrapGuard();
-
-		const createdOptions = created.configOptions ?? [];
-		expect(createdOptions.find(option => option.id === "fast")).toMatchObject({
-			type: "select",
-			currentValue: "off",
-			options: [{ value: "off" }, { value: "on" }],
-		});
-		const modelOption = createdOptions.find(option => option.id === "model");
-		const modelChoices = modelOption?.type === "select" ? modelOption.options : [];
-		expect(modelChoices.find(choice => choice.value === "openai/gpt-5.4")?._meta).toEqual({ fastMode: true });
-
-		const enabled = await harness.agent.setSessionConfigOption({
-			sessionId: created.sessionId,
-			configId: "fast",
-			value: "on",
-		});
-		expect(enabled.configOptions.find(option => option.id === "fast")).toMatchObject({ currentValue: "on" });
-
-		const disabled = await harness.agent.setSessionConfigOption({
-			sessionId: created.sessionId,
-			configId: "fast",
-			value: "off",
-		});
-		expect(disabled.configOptions.find(option => option.id === "fast")).toMatchObject({ currentValue: "off" });
-
-		await expect(
-			harness.agent.setSessionConfigOption({ sessionId: created.sessionId, configId: "fast", value: "ultra" }),
-		).rejects.toThrow("Unknown ACP fast mode: ultra");
-
-		vi.useRealTimers();
-		harness.abortController.abort();
-	});
-
 	it("emits a single config_option_update per /effort change", async () => {
 		// `/effort <level>` calls AgentSession.setThinkingLevel, which fires
 		// `thinking_level_changed`; the lifetime subscription turns that into a

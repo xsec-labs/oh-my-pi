@@ -212,19 +212,6 @@ export function serviceTierFamily(model: ServiceTierModel): ServiceTierFamily | 
 }
 
 /**
- * True when `/fast on` (the `priority` tier) can take effect for `model`: the
- * model has a service-tier family and, for the OpenAI family, offers
- * `priority`. Pure, so clients can ask before they toggle; it answers the same
- * question as the acceptance check in `ModelControls.setFastMode`, minus the
- * side effects.
- */
-export function modelSupportsFastMode(model: ServiceTierModel): boolean {
-	const family = serviceTierFamily(model);
-	if (!family) return false;
-	return family !== "openai" || shouldSendServiceTier("priority", model);
-}
-
-/**
  * Reduce a per-family tier map to the single wire tier for `model` — the entry
  * for the model's family, or `undefined` when the model has no family.
  */

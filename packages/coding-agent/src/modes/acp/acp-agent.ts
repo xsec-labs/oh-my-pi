@@ -1,7 +1,7 @@
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import { AgentBusyError, type AgentToolResult } from "@oh-my-pi/pi-agent-core";
-import { type AssistantMessage, type Model, modelSupportsFastMode } from "@oh-my-pi/pi-ai";
+import type { AssistantMessage, Model } from "@oh-my-pi/pi-ai";
 import { getAgentDir, getBlobsDir, isEnoent, logger, type postmortem, VERSION } from "@oh-my-pi/pi-utils";
 import {
 	type Agent,
@@ -100,6 +100,7 @@ import {
 } from "../../tts/models";
 import { canonicalizeMessage } from "@oh-my-pi/pi-tui/chat/thinking-display";
 import { handleXsecExtMethod, isXsecExtMethod, resumeIf } from "../../xsec/acp";
+import { buildFastConfigOption, FAST_CONFIG_ID, fastModeMeta, setFastModeOption } from "../../xsec/acp-fast-mode";
 import { restoreAcpSessionEvents, restoreAcpText, restoredSessionContext } from "../../xsec/acp-secret-stream";
 import { LateMcpReporter } from "../../xsec/mcp-late-status";
 import { createAcpClientBridge } from "./acp-client-bridge";
@@ -130,9 +131,6 @@ const MODE_CONFIG_ID = "mode";
 const MODEL_CONFIG_ID = "model";
 const THINKING_CONFIG_ID = "thinking";
 const THINKING_OFF = "off";
-const FAST_CONFIG_ID = "fast";
-const FAST_OFF = "off";
-const FAST_ON = "on";
 const SESSION_PAGE_SIZE = 50;
 const SPEECH_MODELS_LIST_METHOD = "speech.models.list";
 /**
@@ -1215,7 +1213,7 @@ export class AcpAgent implements Agent {
 				this.#setThinkingLevelById(record.session, params.value);
 				break;
 			case FAST_CONFIG_ID:
-				this.#setFastModeById(record.session, params.value);
+				setFastModeOption(record.session, params.value);
 				break;
 			default:
 				throw new Error(`Unknown ACP config option: ${params.configId}`);
@@ -2492,7 +2490,7 @@ export class AcpAgent implements Agent {
 					value: this.#toModelId(model),
 					name: model.name,
 					description: `${model.provider}/${model.id}`,
-					_meta: { fastMode: modelSupportsFastMode(model) },
+					_meta: fastModeMeta(model),
 				})),
 			});
 		}
@@ -2507,25 +2505,9 @@ export class AcpAgent implements Agent {
 			),
 			options: this.#buildThinkingOptions(session),
 		});
-		const fastOption = this.#buildFastOption(session);
+		const fastOption = buildFastConfigOption(session);
 		if (fastOption) configOptions.push(fastOption);
 		return configOptions;
-	}
-
-	/** The Fast option: offered only while the session's model can take the priority tier. */
-	#buildFastOption(session: AgentSession): SessionConfigOption | undefined {
-		const model = session.model;
-		if (!model || !modelSupportsFastMode(model)) return undefined;
-		return {
-			id: FAST_CONFIG_ID,
-			name: "Fast",
-			type: "select",
-			currentValue: session.isFastModeEnabled() ? FAST_ON : FAST_OFF,
-			options: [
-				{ value: FAST_OFF, name: "Off" },
-				{ value: FAST_ON, name: "On", description: "Priority service tier: faster responses, higher cost" },
-			],
-		};
 	}
 
 	#buildThinkingOptions(session: AgentSession): Array<{ value: string; name: string; description?: string }> {
@@ -2564,19 +2546,6 @@ export class AcpAgent implements Agent {
 			throw new Error(`Unknown ACP thinking level: ${value}`);
 		}
 		session.setThinkingLevel(thinkingLevel);
-	}
-
-	#setFastModeById(session: AgentSession, value: string): void {
-		if (value === FAST_OFF) {
-			if (session.isFastModeEnabled()) session.setFastMode(false);
-			return;
-		}
-		if (value !== FAST_ON) {
-			throw new Error(`Unknown ACP fast mode: ${value}`);
-		}
-		if (!session.setFastMode(true)) {
-			throw new Error("Fast mode is unavailable for the current model.");
-		}
 	}
 
 	#toModelId(model: Model): string {

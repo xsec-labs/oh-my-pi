@@ -30,8 +30,9 @@ packages/coding-agent/test/tools/browser-relay-detach.test.ts :: relay tabs Chro
 # attempt 2, job 132824432085); and run 43720366167 (xsec afae3b78, attempt 1, job 132830831924,
 # and attempt 2, job 132834667328). The last three are consecutive full-suite runs: no full-suite
 # run passed between them. Attempt 1 of 43717414416 also failed cli-responses-websocket-recovery
-# and read-pdf-screenshot-chromium, and attempt 2 also failed browser-webkit-host. Each of those
-# passed on the other attempt, so none is listed. The same shard passed on run 43379659258 (xsec
+# and read-pdf-screenshot-chromium; both passed in attempt 2. Attempt 2 also failed
+# browser-webkit-host, which has no failure line in attempt 1 (its chunk failed on the nine
+# WebMCP tests). None of these is listed. The same shard passed on run 43379659258 (xsec
 # ccfd81c6, job 131734555540, attempt 1, 37 of 37; job 131738424922 is its attempt-2 record), on
 # run 43408985055 (job 131830345092) and on run 43417102804 (job 131857656875). Runner images are
 # assigned per job. Each native 2/3 job checked on ubuntu22/20261111.360 (Google Chrome

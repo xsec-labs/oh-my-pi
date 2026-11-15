@@ -47,7 +47,7 @@ export function buildFastConfigOption(session: AgentSession): SessionConfigOptio
 
 /**
  * Applies a `fast` value. "off" clears the fast tier; "on" selects priority and fails on a model that cannot take it.
- * A session already on a fast tier keeps that tier: "on" never downgrades ultrafast to priority.
+ * A session on ultrafast keeps that tier: "on" never downgrades it to priority.
  */
 export function setFastModeOption(session: AgentSession, value: string): void {
 	if (value === FAST_OFF) {
@@ -61,7 +61,8 @@ export function setFastModeOption(session: AgentSession, value: string): void {
 	if (!model || !modelSupportsFastMode(model)) {
 		throw new Error("Fast mode is unavailable for the current model.");
 	}
-	if (session.isFastModeEnabled()) return;
+	// Ultrafast is kept: setting priority would downgrade it. Priority is set again on purpose, as /fast on does.
+	if (session.isUltrafastModeEnabled()) return;
 	if (!session.setFastMode(true)) {
 		throw new Error("Fast mode is unavailable for the current model.");
 	}

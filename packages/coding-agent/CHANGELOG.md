@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Added
+
+- ACP clients can turn Fast mode (the priority service tier) on and off with a `fast` session config option, offered only while the session's model supports it; each model choice carries `_meta.fastMode` to mark the models that do.
+
 ## [18.20.0] - 2026-11-12
 
 ### Breaking Changes

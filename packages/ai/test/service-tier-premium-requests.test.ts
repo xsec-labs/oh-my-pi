@@ -3,6 +3,7 @@ import type { Api } from "@oh-my-pi/pi-ai/types";
 import {
 	coerceServiceTierByFamily,
 	getPremiumServiceTierRequests,
+	modelSupportsFastMode,
 	realizesPriorityServiceTier,
 	resolveModelServiceTier,
 	serviceTierFamily,
@@ -36,6 +37,23 @@ const customOpenAIAliases = [
 	m("custom-relay", "openai-responses", "o4-mini"),
 	m("custom-relay", "openai-responses", "codex-mini-latest"),
 ];
+
+describe("modelSupportsFastMode", () => {
+	it("accepts models whose family takes the priority tier", () => {
+		expect(modelSupportsFastMode(openai)).toBe(true);
+		expect(modelSupportsFastMode(anthropic)).toBe(true);
+		expect(modelSupportsFastMode(gemini)).toBe(true);
+	});
+
+	it("rejects a model with no service-tier family", () => {
+		expect(modelSupportsFastMode(m("deepseek", "openai-completions", "deepseek-v4-pro"))).toBe(false);
+	});
+
+	it("rejects an OpenAI-family model whose advertised tiers omit priority", () => {
+		const ultrafastOnly = { ...codex, serviceTiers: ["ultrafast" as const] };
+		expect(modelSupportsFastMode(ultrafastOnly)).toBe(false);
+	});
+});
 
 describe("serviceTierFamily", () => {
 	it("classifies first-party providers by provider/api", () => {

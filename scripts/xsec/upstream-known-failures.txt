@@ -19,3 +19,32 @@
 # the same chunk (84/112 of shard 3/3) with the same error. Since v18.20.0 the fork
 # changes no upstream test or source file, so these runs used upstream's code.
 packages/coding-agent/test/tools/browser-relay-detach.test.ts :: relay tabs Chrome detaches omp from > reports a cancel that lands during the re-adoption as a cancel
+#
+# browser-webmcp, nine tests in packages/coding-agent/test/tools/browser-webmcp.test.ts
+# ("browser WebMCP helpers"): each fails. Two print "Chrome does not expose WebMCP to this page";
+# the other seven fail on an assertion or on "Browser call returned no value".
+# Evidence: `Test coding-agent native 2/3` fails with the same nine names in every attempt listed
+# here, on WebMCP code that did not change between their heads: run 43374121307 (head 7bd5a802,
+# attempt 1, job 131716495720); run 43561691327 (head 2d68d86b, attempt 1, job 132346602422, and
+# attempt 2, job 132349536294); run 43717414416 (head f7cd6423, attempt 1, job 132821834663, and
+# attempt 2, job 132824432085); and run 43720366167 (xsec afae3b78, attempt 1, job 132830831924,
+# and attempt 2, job 132834667328). The last three are consecutive full-suite runs: no full-suite
+# run passed between them. Attempt 1 of 43717414416 also failed cli-responses-websocket-recovery
+# and read-pdf-screenshot-chromium; both passed in attempt 2. Attempt 2 also failed
+# browser-webkit-host, which has no failure line in attempt 1 (its chunk failed on the nine
+# WebMCP tests). None of these is listed. The same shard passed on run 43379659258 (xsec
+# ccfd81c6, job 131734555540, attempt 1, 37 of 37; job 131738424922 is its attempt-2 record), on
+# run 43408985055 (job 131830345092) and on run 43417102804 (job 131857656875). Runner images are
+# assigned per job. Each native 2/3 job checked on ubuntu22/20261111.360 (Google Chrome
+# 157.0.8103.78) failed with these names, and each one checked on ubuntu22/20261101.347 (Google
+# Chrome 156.0.8078.79) passed. The cause is not confirmed. These entries are expected to come off
+# when upstream or the runner's Chrome restores WebMCP.
+packages/coding-agent/test/tools/browser-webmcp.test.ts :: browser WebMCP helpers > discovers, invokes, bounds trust, and reports native registrations
+packages/coding-agent/test/tools/browser-webmcp.test.ts :: browser WebMCP helpers > leaves the page's globals and modelContext alone, before and after a webmcp helper runs
+packages/coding-agent/test/tools/browser-webmcp.test.ts :: browser WebMCP helpers > lists and invokes a tool a cross-origin iframe registers in its own process
+packages/coding-agent/test/tools/browser-webmcp.test.ts :: browser WebMCP helpers > keeps a page alive whose same-site iframe is touched before it navigates
+packages/coding-agent/test/tools/browser-webmcp.test.ts :: browser WebMCP helpers > forgets a page's tools once it navigates and finds the next page's
+packages/coding-agent/test/tools/browser-webmcp.test.ts :: browser WebMCP helpers > cancels the page's tool invocation when the call is aborted
+packages/coding-agent/test/tools/browser-webmcp.test.ts :: browser WebMCP helpers > never starts the page's tool once the call is aborted
+packages/coding-agent/test/tools/browser-webmcp.test.ts :: browser WebMCP helpers > lists a same-process iframe's tools, registered before the first call, until the iframe navigates
+packages/coding-agent/test/tools/browser-webmcp.test.ts :: browser WebMCP helpers > blames the Chrome version only when invokeTool itself is missing, not for another error saying something wasn't found

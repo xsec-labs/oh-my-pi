@@ -6,16 +6,36 @@ name: xsec release
 # A tag push (v<upstream>-xsec.<n>) publishes a GitHub Release in this
 # repository, once tag_guard finds the tagged commit on xsec with a green xsec
 # CI push run. A manual run builds, smokes and checksums the same assets and
-# stops there: only the publish job is limited to tag pushes.
+# stops there, unless create_tag is set: then, once every job has passed on the
+# commit the run started on (the head of xsec), create_release_tag pushes the
+# tag, and that tag run publishes. Only the publish job is limited to tag pushes.
 #
-# GitHub-hosted runners only, and no secrets: macOS binaries are signed ad hoc
-# by scripts/ci-macos-sign.sh. Never attach a self-hosted runner to this
-# repository: it is public, and a pull request could run its code on it.
+# GitHub-hosted runners only. The one secret, RELEASE_TAG_TOKEN, is read by
+# create_release_tag alone, from the xsec-release environment, which deploys
+# from xsec only. Its token belongs to a bypass account of the tag ruleset, so
+# that job checks out nothing and runs only the steps written here. macOS
+# binaries are signed ad hoc by scripts/ci-macos-sign.sh. Never attach a
+# self-hosted runner to this repository: it is public, and a pull request could
+# run its code on it.
 
 on:
    push:
       tags: ["v*-xsec.*"]
    workflow_dispatch:
+      inputs:
+         commit:
+            description: "Full SHA of xsec's head, the commit this run builds. create_tag requires it to be that commit."
+            required: false
+            type: string
+         version:
+            description: "Fork release tag v<upstream>-xsec.<n>, for example v18.20.2-xsec.1 (create_tag requires it)"
+            required: false
+            type: string
+         create_tag:
+            description: "Create the tag once every job passed on the commit, so the tag run publishes the release"
+            required: false
+            type: boolean
+            default: false
 
 concurrency:
    group: "xsec-release-${{ github.ref }}"
@@ -198,10 +218,57 @@ jobs:
               GITHUB_TOKEN: ${{ github.token }}
            run: bun scripts/xsec/check-release-tag.ts "$GITHUB_SHA"
 
+   create_release_tag:
+      name: Create the release tag
+      # A manual run with create_tag set tags the commit it started on, and only
+      # when every job above passed on it. The tag push then starts the tag run,
+      # which publishes. This job is the only one that reads RELEASE_TAG_TOKEN.
+      if: github.event_name == 'workflow_dispatch' && inputs.create_tag
+      needs: [release_assets, tag_guard]
+      runs-on: ubuntu-22.04
+      timeout-minutes: 10
+      environment: xsec-release
+      permissions:
+         contents: read
+      steps:
+         - name: Check the candidate
+           env:
+              CANDIDATE: ${{ inputs.commit }}
+              VERSION: ${{ inputs.version }}
+           run: |
+              set -euo pipefail
+              # The jobs above built, smoked and checked the commit this run started on, so the
+              # candidate must be that commit. Only xsec deploys to this environment.
+              if [[ ! "$CANDIDATE" =~ ^[0-9a-f]{40}$ ]] || [ "$CANDIDATE" != "$GITHUB_SHA" ]; then
+                 echo "::error::commit must be the full SHA this run started on, $GITHUB_SHA, not '$CANDIDATE'."
+                 exit 1
+              fi
+              if [[ ! "$VERSION" =~ ^v[0-9]+(\.[0-9]+)*-xsec\.[0-9]+$ ]]; then
+                 echo "::error::version must be a fork tag such as v18.20.2-xsec.1, not '$VERSION'."
+                 exit 1
+              fi
+         - name: Create the tag
+           # GITHUB_TOKEN cannot create a tag the ruleset protects, and a tag it pushes starts no
+           # run. This token belongs to a bypass account, and a tag it creates starts the tag run.
+           # The request fails when the tag already exists, so no release is tagged twice.
+           env:
+              GH_TOKEN: ${{ secrets.RELEASE_TAG_TOKEN }}
+              CANDIDATE: ${{ inputs.commit }}
+              VERSION: ${{ inputs.version }}
+           run: |
+              set -euo pipefail
+              if [ -z "$GH_TOKEN" ]; then
+                 echo "::error::The xsec-release environment has no RELEASE_TAG_TOKEN secret."
+                 exit 1
+              fi
+              tagged="$(gh api --method POST "repos/$GITHUB_REPOSITORY/git/refs" -f "ref=refs/tags/$VERSION" -f "sha=$CANDIDATE" --jq '.object.sha')"
+              test "$tagged" = "$CANDIDATE"
+              echo "Tagged $CANDIDATE as $VERSION. The tag run publishes the release."
+
    publish:
       name: Publish GitHub release
-      # Only a tag push publishes, and only once tag_guard passes; a manual run
-      # stops after release_assets.
+      # Only a tag push publishes, and only once tag_guard passes. A manual run
+      # stops after release_assets, or after create_release_tag.
       if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
       needs: [release_assets, tag_guard]
       runs-on: ubuntu-22.04

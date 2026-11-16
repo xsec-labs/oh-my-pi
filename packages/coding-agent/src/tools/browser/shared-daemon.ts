@@ -15,6 +15,7 @@ import { type DaemonBrokerClient, daemonClientForProject } from "../../launch/cl
 import { describeDaemon, describeQuietly, stopQuietly, waitReady } from "../../launch/ensure";
 import { daemonRuntimeDir } from "../../launch/paths";
 import type { DaemonSnapshot } from "@oh-my-pi/pi-tui/tools/daemon";
+import { sharedBrowserSessionFields } from "../../xsec/browser-session";
 import { throwIfAborted } from "../tool-errors";
 import { probeCdpStatus } from "./attach";
 import {
@@ -252,6 +253,7 @@ async function adoptOrStart(
 					restart: "no",
 					persist: false,
 					detached: false,
+					...sharedBrowserSessionFields(),
 				},
 			},
 			signal,

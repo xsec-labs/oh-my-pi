@@ -41,6 +41,7 @@ import {
 	parseDaemonWireRequest,
 } from "./protocol";
 import { resolveDaemonSpawnOptions } from "./spawn-options";
+import { daemonSpawnOptions, leadsOwnGroup } from "../xsec/browser-session";
 import { renderTerminalOutput } from "./terminal-output";
 import { quotePosixArgv } from "../utils/shell-quote";
 
@@ -910,7 +911,7 @@ class DaemonBroker {
 			stdin: "pipe",
 			stdout: "pipe",
 			stderr: "pipe",
-			...DAEMON_SPAWN_OPTIONS,
+			...daemonSpawnOptions(record.spec, DAEMON_SPAWN_OPTIONS),
 		});
 		record.process = process;
 		record.input = process.stdin;
@@ -1296,7 +1297,8 @@ class DaemonBroker {
 		record.snapshot.state = "stopping";
 		this.#persist(record);
 		const processRef = record.snapshot.pid === undefined ? null : Process.fromPid(record.snapshot.pid);
-		if (processRef) await processRef.terminate({ group: true, gracefulMs: timeoutMs, timeoutMs: timeoutMs + 1_000 });
+		const group = processRef ? leadsOwnGroup(processRef) : false;
+		if (processRef) await processRef.terminate({ group, gracefulMs: timeoutMs, timeoutMs: timeoutMs + 1_000 });
 		else record.pty?.kill();
 		const settled = await this.#waitUntil(record, () => terminalState(record.snapshot.state), timeoutMs + 1_000);
 		if (!settled && record.pty) record.pty.kill();
@@ -1454,7 +1456,7 @@ class DaemonBroker {
 					// exited; already-terminal records keep their real exit time so
 					// `list` ranks exited history by true recency (issue #6517).
 					if (!terminalState(snapshot.state) && processRef) {
-						await processRef.terminate({ group: true, gracefulMs: 500, timeoutMs: 2_000 });
+						await processRef.terminate({ group: leadsOwnGroup(processRef), gracefulMs: 500, timeoutMs: 2_000 });
 					}
 					reapRecoveredSnapshot(snapshot, Date.now());
 				} else if (snapshot.state === "restarting") {

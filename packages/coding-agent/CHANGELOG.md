@@ -2,10 +2,6 @@
 
 ## [Unreleased]
 
-### Fixed
-
-- Fixed the shared browser failing to start Chrome on macOS.
-
 ## [18.20.2] - 2026-11-14
 
 ### Added

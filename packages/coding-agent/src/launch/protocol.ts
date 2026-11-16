@@ -6,6 +6,7 @@ import {
 	type DaemonSpec,
 	type DaemonSnapshot,
 } from "@oh-my-pi/pi-tui/tools/daemon";
+import { parseSessionFields } from "../xsec/browser-session";
 /**
  * Cross-process daemon broker protocol shared by the tool, client, and broker.
  */
@@ -228,8 +229,7 @@ export function parseDaemonSpec(value: unknown): DaemonSpec {
 		restart: restartPolicy(source.restart),
 		persist: booleanValue(source.persist, "spec.persist") || detached,
 		detached,
-		inheritSession:
-			source.inheritSession === undefined ? undefined : booleanValue(source.inheritSession, "spec.inheritSession"),
+		...parseSessionFields(source),
 	};
 }
 

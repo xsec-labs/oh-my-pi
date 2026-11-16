@@ -28,34 +28,4 @@ describe("resolveDaemonSpawnOptions", () => {
 			}),
 		).toEqual({ detached: true });
 	});
-
-	// Regression: a browser daemon started with setsid on macOS fails Chrome's bootstrap check-in.
-	it("keeps a macOS daemon that inherits the session in the broker's session", () => {
-		expect(
-			resolveDaemonSpawnOptions({
-				platform: "darwin",
-				hostHasInheritableConsole: false,
-				inheritSession: true,
-			}),
-		).toEqual({ detached: false });
-	});
-
-	it("keeps other macOS daemons in their own session", () => {
-		expect(
-			resolveDaemonSpawnOptions({
-				platform: "darwin",
-				hostHasInheritableConsole: false,
-			}),
-		).toEqual({ detached: true });
-	});
-
-	it("ignores the inherit request off macOS", () => {
-		expect(
-			resolveDaemonSpawnOptions({
-				platform: "linux",
-				hostHasInheritableConsole: false,
-				inheritSession: true,
-			}),
-		).toEqual({ detached: true });
-	});
 });

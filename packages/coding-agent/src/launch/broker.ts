@@ -40,7 +40,7 @@ import {
 	parseDaemonWireMessage,
 	parseDaemonWireRequest,
 } from "./protocol";
-import { resolveDaemonSpawnOptions } from "./spawn-options";
+import { type DaemonSpawnOptions, resolveDaemonSpawnOptions } from "./spawn-options";
 import { renderTerminalOutput } from "./terminal-output";
 import { quotePosixArgv } from "../utils/shell-quote";
 
@@ -78,6 +78,25 @@ const DAEMON_SPAWN_OPTIONS = resolveDaemonSpawnOptions({
 	platform: process.platform,
 	hostHasInheritableConsole: hostHasInheritableConsole(),
 });
+const INHERITED_SESSION_SPAWN_OPTIONS = resolveDaemonSpawnOptions({
+	platform: process.platform,
+	hostHasInheritableConsole: hostHasInheritableConsole(),
+	inheritSession: true,
+});
+
+/** Spawn options of one daemon: only a pipe-launched daemon that inherits the session differs. */
+function daemonSpawnOptions(spec: DaemonSpec): DaemonSpawnOptions {
+	const pipeLaunched = !spec.detached && !spec.pty;
+	return pipeLaunched && spec.inheritSession ? INHERITED_SESSION_SPAWN_OPTIONS : DAEMON_SPAWN_OPTIONS;
+}
+
+/**
+ * Whether the daemon's child leads its own process group, so a group signal may reach it.
+ * An inheriting daemon shares the broker's group, which must never be signalled.
+ */
+function leadsOwnGroup(spec: DaemonSpec): boolean {
+	return daemonSpawnOptions(spec).detached;
+}
 
 const SIGNAL_NUMBER: Record<DaemonSignal, number> = {
 	SIGINT: os.constants.signals.SIGINT,
@@ -910,7 +929,7 @@ class DaemonBroker {
 			stdin: "pipe",
 			stdout: "pipe",
 			stderr: "pipe",
-			...DAEMON_SPAWN_OPTIONS,
+			...daemonSpawnOptions(record.spec),
 		});
 		record.process = process;
 		record.input = process.stdin;
@@ -1296,8 +1315,14 @@ class DaemonBroker {
 		record.snapshot.state = "stopping";
 		this.#persist(record);
 		const processRef = record.snapshot.pid === undefined ? null : Process.fromPid(record.snapshot.pid);
-		if (processRef) await processRef.terminate({ group: true, gracefulMs: timeoutMs, timeoutMs: timeoutMs + 1_000 });
-		else record.pty?.kill();
+		if (processRef) {
+			// An inheriting daemon shares the broker's process group, so only its own tree is signalled.
+			await processRef.terminate({
+				group: leadsOwnGroup(record.spec),
+				gracefulMs: timeoutMs,
+				timeoutMs: timeoutMs + 1_000,
+			});
+		} else record.pty?.kill();
 		const settled = await this.#waitUntil(record, () => terminalState(record.snapshot.state), timeoutMs + 1_000);
 		if (!settled && record.pty) record.pty.kill();
 	}
@@ -1454,7 +1479,7 @@ class DaemonBroker {
 					// exited; already-terminal records keep their real exit time so
 					// `list` ranks exited history by true recency (issue #6517).
 					if (!terminalState(snapshot.state) && processRef) {
-						await processRef.terminate({ group: true, gracefulMs: 500, timeoutMs: 2_000 });
+						await processRef.terminate({ group: leadsOwnGroup(spec), gracefulMs: 500, timeoutMs: 2_000 });
 					}
 					reapRecoveredSnapshot(snapshot, Date.now());
 				} else if (snapshot.state === "restarting") {

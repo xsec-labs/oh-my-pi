@@ -228,6 +228,8 @@ export function parseDaemonSpec(value: unknown): DaemonSpec {
 		restart: restartPolicy(source.restart),
 		persist: booleanValue(source.persist, "spec.persist") || detached,
 		detached,
+		inheritSession:
+			source.inheritSession === undefined ? undefined : booleanValue(source.inheritSession, "spec.inheritSession"),
 	};
 }
 

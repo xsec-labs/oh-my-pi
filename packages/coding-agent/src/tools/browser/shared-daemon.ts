@@ -252,6 +252,8 @@ async function adoptOrStart(
 					restart: "no",
 					persist: false,
 					detached: false,
+					// Chrome's bootstrap check-in fails from a new session on macOS (see spawn-options.ts).
+					inheritSession: true,
 				},
 			},
 			signal,

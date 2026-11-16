@@ -26,6 +26,12 @@ export interface DaemonSpec {
 	restart: DaemonRestartPolicy;
 	persist: boolean;
 	detached: boolean;
+	/**
+	 * Pipe-launched daemon that stays in the broker's session where the platform needs it:
+	 * macOS refuses Chrome's bootstrap check-in from a new session. Detached and PTY daemons
+	 * ignore it, and so does every platform that keeps the own-session default.
+	 */
+	inheritSession?: boolean;
 }
 
 /** Serializable daemon state visible to every client in one broker scope. */

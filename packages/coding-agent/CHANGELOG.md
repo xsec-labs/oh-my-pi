@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Added
+
+- ACP hosts can set `PI_ACP_AUTO_TITLE=1` to have unnamed sessions titled from the first operator message (plain title from the title model) and the title pushed to the client as `session_info_update`, including when it lands after the prompt response.
+
 ## [18.20.2] - 2026-11-14
 
 ### Added

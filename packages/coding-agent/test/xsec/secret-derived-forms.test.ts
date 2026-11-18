@@ -116,6 +116,26 @@ describe("derived forms of a masked value", () => {
 		expect(maskDerivedText(obfuscator(), wrapped)).toBe(wrapped);
 	});
 
+	it("masks the forms of a thousand values, which one regular expression cannot hold", () => {
+		const secrets = Array.from({ length: 1000 }, (_, i) => `value-${i}-${crypto.randomBytes(6).toString("hex")}`);
+		const o = new SecretObfuscator(secrets.map(content => ({ type: "plain", content, mode: "obfuscate" })));
+		const first = secrets[0] as string;
+		const last = secrets[999] as string;
+		const text = `${digest("sha256", first).toString("hex")} ${Buffer.from(last).toString("base64")}`;
+		expect(maskDerivedText(o, text)).toBe(`${DERIVED_VALUE_MARKER} ${DERIVED_VALUE_MARKER}`);
+	});
+
+	it("handles a value with a lone surrogate, which has no percent-encoding", () => {
+		// A tool result cut in the middle of an emoji gives a regex match that ends in half of a surrogate pair.
+		const secret = "token-\ud83d";
+		const o = new SecretObfuscator([{ type: "plain", content: secret, mode: "obfuscate" }]);
+		const hex = Buffer.from(secret).toString("hex");
+		expect(() => maskDerivedText(o, `out ${hex}`)).not.toThrow();
+		expect(maskDerivedText(o, `out ${digest("sha256", Buffer.from(secret)).toString("hex")}`)).toBe(
+			`out ${DERIVED_VALUE_MARKER}`,
+		);
+	});
+
 	it("masks several forms in one text, and the digest of a longer value", () => {
 		const secret = "correct-horse-battery-staple";
 		const f = forms(secret);

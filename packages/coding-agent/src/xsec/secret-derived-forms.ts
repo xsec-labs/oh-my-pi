@@ -93,6 +93,15 @@ function base64Embedded(value: Buffer): string[] {
 	return forms;
 }
 
+/** Percent-encoding of a value; undefined for a value with a lone surrogate (a truncated emoji), which has none. */
+function percentEncode(value: string): string | undefined {
+	try {
+		return encodeURIComponent(value);
+	} catch {
+		return undefined;
+	}
+}
+
 function deriveForms(secret: string): DerivedForms {
 	const cached = formsBySecret.get(secret);
 	if (cached !== undefined) return cached;
@@ -105,8 +114,8 @@ function deriveForms(secret: string): DerivedForms {
 		for (const form of base64Embedded(value)) exact.add(form);
 		const hex = value.toString("hex");
 		if (hex.length >= MIN_HEX) folded.add(hex);
-		const percent = encodeURIComponent(secret);
-		if (percent !== secret && percent.length >= MIN_ENCODED) folded.add(percent);
+		const percent = percentEncode(secret);
+		if (percent !== undefined && percent !== secret && percent.length >= MIN_ENCODED) folded.add(percent);
 	}
 	for (const input of [value, Buffer.concat([value, Buffer.from("\n")])]) {
 		for (const algorithm of DIGESTS) {
@@ -125,10 +134,33 @@ function escapeRegex(text: string): string {
 	return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
-/** One alternation, longest first so a padded form wins over its unpadded prefix. */
-function alternation(literals: Iterable<string>, flags: string): RegExp | undefined {
+/**
+ * Most literals, and most characters of them, in one regular expression. V8 refuses a pattern that is too large
+ * (about 800 secrets of this module's forms), and a request that throws is not recoverable, so a registry of any
+ * size is split into several expressions run one after another.
+ */
+const MAX_LITERALS_PER_REGEX = 150;
+const MAX_CHARS_PER_REGEX = 20_000;
+
+/** Alternations of the literals, each longest first so a padded form wins over its unpadded prefix. */
+function alternations(literals: Iterable<string>, flags: string): RegExp[] {
 	const unique = [...new Set(literals)].sort((a, b) => b.length - a.length);
-	return unique.length === 0 ? undefined : new RegExp(unique.map(escapeRegex).join("|"), flags);
+	const expressions: RegExp[] = [];
+	let group: string[] = [];
+	let chars = 0;
+	const flush = (): void => {
+		if (group.length > 0) expressions.push(new RegExp(group.join("|"), flags));
+		group = [];
+		chars = 0;
+	};
+	for (const literal of unique) {
+		const source = escapeRegex(literal);
+		if (group.length >= MAX_LITERALS_PER_REGEX || chars + source.length > MAX_CHARS_PER_REGEX) flush();
+		group.push(source);
+		chars += source.length;
+	}
+	flush();
+	return expressions;
 }
 
 /** Longest text kept in the per-matcher result cache, and how many texts. */
@@ -137,8 +169,8 @@ const MAX_MEMO_ENTRIES = 512;
 
 class DerivedMatcher {
 	readonly values: readonly string[];
-	readonly #exact: RegExp | undefined;
-	readonly #folded: RegExp | undefined;
+	readonly #exact: RegExp[];
+	readonly #folded: RegExp[];
 	readonly #prefixes = new Map<string, string[]>();
 	readonly #suffixes = new Map<string, string[]>();
 	readonly #memo = new Map<string, string>();
@@ -157,13 +189,13 @@ class DerivedMatcher {
 				addTo(this.#suffixes, digest.slice(-MIN_DIGEST_PART), digest);
 			}
 		}
-		this.#exact = alternation(exact, "g");
-		this.#folded = alternation(folded, "gi");
+		this.#exact = alternations(exact, "g");
+		this.#folded = alternations(folded, "gi");
 	}
 
 	/** Whether any form is known: a registry with only empty values has nothing to look for. */
 	get empty(): boolean {
-		return this.#exact === undefined && this.#folded === undefined;
+		return this.#exact.length === 0 && this.#folded.length === 0;
 	}
 
 	mask(text: string): string {
@@ -192,8 +224,8 @@ class DerivedMatcher {
 
 	#maskLiterals(text: string): string {
 		let result = text;
-		if (this.#exact !== undefined) result = result.replace(this.#exact, DERIVED_VALUE_MARKER);
-		if (this.#folded !== undefined) result = result.replace(this.#folded, DERIVED_VALUE_MARKER);
+		for (const expression of this.#exact) result = result.replace(expression, DERIVED_VALUE_MARKER);
+		for (const expression of this.#folded) result = result.replace(expression, DERIVED_VALUE_MARKER);
 		return result.replace(HEX_RUN, run => (this.#isDigestPart(run.toLowerCase()) ? DERIVED_VALUE_MARKER : run));
 	}
 

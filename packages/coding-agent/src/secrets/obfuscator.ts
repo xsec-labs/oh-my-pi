@@ -533,13 +533,9 @@ export class SecretObfuscator {
 		return this.#hasAny && this.#obfuscating;
 	}
 
-	/** Every secret value the registry holds, with the registry version they were read at (xsec/secret-derived-forms.ts). */
-	secretValues(): { revision: number; values: string[] } {
-		const values = new Set<string>([...this.#plainMappings.keys(), ...this.#replaceMappings.keys()]);
-		for (const { secret } of this.#obfuscateMappings.values()) values.add(secret);
-		return { revision: this.#revision.value, values: [...values] };
+	secretValues(): string[] {
+		return [...this.#plainMappings.keys(), ...this.#replaceMappings.keys(), ...this.#mintedSecretValues];
 	}
-
 	/**
 	 * Toggle outbound obfuscation. When off, {@link obfuscate} is identity, while
 	 * placeholders minted earlier keep deobfuscating so prior turns stay readable.

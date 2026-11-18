@@ -84,6 +84,38 @@ describe("derived forms of a masked value", () => {
 		}
 	});
 
+	it("masks a base64 text wrapped over several lines", () => {
+		// A value over 57 bytes is wrapped by `base64` (76 columns, LF) and `openssl base64` (64 columns).
+		const secret = "correct-horse-battery-staple-correct-horse-battery-staple-correct-horse-battery";
+		const encoded = Buffer.from(secret).toString("base64");
+		const wrap = (width: number, newline: string): string =>
+			(encoded.match(new RegExp(`.{1,${width}}`, "g")) ?? []).join(newline);
+		for (const [width, newline] of [
+			[76, "\n"],
+			[64, "\n"],
+			[76, "\r\n"],
+		] as const) {
+			const wrapped = wrap(width, newline);
+			expect(wrapped).toContain(newline);
+			const text = `before\n${wrapped}\nafter`;
+			const masked = maskDerivedText(obfuscator(secret), text);
+			expect(masked).toBe(`before\n${DERIVED_VALUE_MARKER}\nafter`);
+		}
+		// Embedded in a longer wrapped text, at an offset: the user name shifts the base64 alignment.
+		const embedded = Buffer.from(`user:${secret}`).toString("base64");
+		const lines = (embedded.match(/.{1,76}/g) ?? []).join("\n");
+		expect(maskDerivedText(obfuscator(secret), lines)).toContain(DERIVED_VALUE_MARKER);
+		expect(maskDerivedText(obfuscator(secret), lines)).not.toContain(embedded.slice(8, 40));
+	});
+
+	it("leaves wrapped base64 that holds no form as it is, line breaks included", () => {
+		const other = Buffer.from("an unrelated value that is long enough to wrap onto a second line of base64").toString(
+			"base64",
+		);
+		const wrapped = `${other.slice(0, 76)}\n${other.slice(76)}`;
+		expect(maskDerivedText(obfuscator(), wrapped)).toBe(wrapped);
+	});
+
 	it("masks several forms in one text, and the digest of a longer value", () => {
 		const secret = "correct-horse-battery-staple";
 		const f = forms(secret);

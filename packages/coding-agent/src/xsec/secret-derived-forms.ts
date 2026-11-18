@@ -46,6 +46,14 @@ const DIGESTS = ["md5", "sha1", "sha256", "sha512"] as const;
 /** Characters of a base64 group that the embedded value does not alone determine, by byte offset. */
 const BASE64_LEADING_MIXED = [0, 2, 3] as const;
 const HEX_RUN = /[0-9a-fA-F]{6,}/g;
+/**
+ * Base64 wrapped over several lines (coreutils `base64` breaks at 76 columns, openssl and PEM at 64, MIME with CRLF):
+ * two or more full lines of base64 characters and the last, possibly short, line. A value over 57 bytes is wrapped, and
+ * a line break in the middle of its encoding hides it from a literal match, so the block is matched with its line
+ * breaks removed. The lookbehind keeps the scan linear: a start inside a longer run is refused at once.
+ */
+const WRAPPED_BASE64 = /(?<![A-Za-z0-9+/_-])(?:[A-Za-z0-9+/_-]{16,}\r?\n)+[A-Za-z0-9+/_-]*={0,2}/g;
+const LINE_BREAKS = /\r?\n/g;
 
 interface DerivedForms {
 	/** Matched as written. */
@@ -128,15 +136,15 @@ const MAX_MEMO_TEXT = 1 << 20;
 const MAX_MEMO_ENTRIES = 512;
 
 class DerivedMatcher {
-	readonly revision: number;
+	readonly values: readonly string[];
 	readonly #exact: RegExp | undefined;
 	readonly #folded: RegExp | undefined;
 	readonly #prefixes = new Map<string, string[]>();
 	readonly #suffixes = new Map<string, string[]>();
 	readonly #memo = new Map<string, string>();
 
-	constructor(revision: number, secrets: readonly string[]) {
-		this.revision = revision;
+	constructor(secrets: readonly string[]) {
+		this.values = secrets;
 		const exact: string[] = [];
 		const folded: string[] = [];
 		for (const secret of secrets) {
@@ -171,6 +179,18 @@ class DerivedMatcher {
 	}
 
 	#maskNow(text: string): string {
+		if (text.includes("\n")) {
+			// A wrapped block that holds a form loses its line breaks: the marker takes the place of the matched part.
+			text = text.replace(WRAPPED_BASE64, block => {
+				const joined = block.replace(LINE_BREAKS, "");
+				const masked = this.#maskLiterals(joined);
+				return masked === joined ? block : masked;
+			});
+		}
+		return this.#maskLiterals(text);
+	}
+
+	#maskLiterals(text: string): string {
 		let result = text;
 		if (this.#exact !== undefined) result = result.replace(this.#exact, DERIVED_VALUE_MARKER);
 		if (this.#folded !== undefined) result = result.replace(this.#folded, DERIVED_VALUE_MARKER);
@@ -197,11 +217,16 @@ function addTo(map: Map<string, string[]>, key: string, value: string): void {
 
 const matchers = new WeakMap<SecretObfuscator, DerivedMatcher>();
 
+function sameValues(a: readonly string[], b: readonly string[]): boolean {
+	return a.length === b.length && a.every((value, index) => value === b[index]);
+}
+
+/** The matcher for the registry as it is now: rebuilt when a value was added or removed since the last request. */
 function matcherOf(obfuscator: SecretObfuscator): DerivedMatcher {
-	const { revision, values } = obfuscator.secretValues();
+	const values = obfuscator.secretValues();
 	const known = matchers.get(obfuscator);
-	if (known !== undefined && known.revision === revision) return known;
-	const built = new DerivedMatcher(revision, values);
+	if (known !== undefined && sameValues(known.values, values)) return known;
+	const built = new DerivedMatcher(values);
 	matchers.set(obfuscator, built);
 	return built;
 }

@@ -533,6 +533,9 @@ export class SecretObfuscator {
 		return this.#hasAny && this.#obfuscating;
 	}
 
+	secretValues(): string[] {
+		return [...this.#plainMappings.keys(), ...this.#replaceMappings.keys(), ...this.#mintedSecretValues];
+	}
 	/**
 	 * Toggle outbound obfuscation. When off, {@link obfuscate} is identity, while
 	 * placeholders minted earlier keep deobfuscating so prior turns stay readable.

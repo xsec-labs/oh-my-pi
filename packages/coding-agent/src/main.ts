@@ -149,6 +149,7 @@ import type { LspStartupServerInfo } from "./tools";
 import { sanitizeDisplayWarnings } from "@oh-my-pi/pi-tui/render/render-utils";
 import { getChangelogPath, readLastChangelogVersion, resolveStartupChangelogForDisplay } from "./utils/changelog";
 import { EventBus } from "./utils/event-bus";
+import { enableAcpAutoTitle } from "./xsec/acp-auto-title";
 import { resolveFirstLaunchPythonEvalWarning } from "./eval/startup-warning";
 import { CliUsageError } from "./cli/usage-error";
 import { scheduleGcAutoCompress } from "./cli/gc-auto-compress";
@@ -2031,11 +2032,12 @@ export async function runRootCommand(
 		if (parsedArgs.noPty || parsedArgs.mode === "rpc-ui") {
 			Bun.env.PI_NO_PTY = "1";
 		}
+		const acpAutoTitle = enableAcpAutoTitle(parsedArgs, settingsInstance);
 		if (
 			parsedArgs.noTitle ||
 			parsedArgs.mode === "rpc" ||
 			parsedArgs.mode === "rpc-ui" ||
-			parsedArgs.mode === "acp"
+			(parsedArgs.mode === "acp" && !acpAutoTitle)
 		) {
 			Bun.env.PI_NO_TITLE = "1";
 		}
@@ -2410,7 +2412,7 @@ export async function runRootCommand(
 			options.allowSessionModelFallback = isInteractive;
 			options.settingsApproval = isInteractive;
 			options.tuiTranscript = isInteractive;
-			options.autoTitle = isInteractive;
+			options.autoTitle = isInteractive || acpAutoTitle;
 			options.deferSkillDescriptionCompression = isInteractive;
 			options.settings = settingsInstance;
 			options.telemetry = startupTelemetry;

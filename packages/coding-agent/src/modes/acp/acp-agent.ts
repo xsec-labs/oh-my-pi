@@ -105,6 +105,7 @@ import {
 } from "../../tts/models";
 import { canonicalizeMessage } from "@oh-my-pi/pi-tui/chat/thinking-display";
 import { handleXsecExtMethod, isXsecExtMethod, resumeIf } from "../../xsec/acp";
+import { watchGeneratedTitle } from "../../xsec/acp-auto-title";
 import { buildFastConfigOption, FAST_CONFIG_ID, fastModeMeta, setFastModeOption } from "../../xsec/acp-fast-mode";
 import { restoreAcpSessionEvents, restoreAcpText, restoredSessionContext } from "../../xsec/acp-secret-stream";
 import { LateMcpReporter } from "../../xsec/mcp-late-status";
@@ -416,6 +417,7 @@ type ManagedSessionRecord = {
 	// after the bootstrap guard or a client prompt proves the session is known.
 	lifetimeUnsubscribe: (() => void) | undefined;
 	commandMetadataUnsubscribe: (() => void) | undefined;
+	titleUnsubscribe: (() => void) | undefined;
 	lifetimeUpdatesReady: boolean;
 	pendingCompactionNotifications: AcpCompactionNotification[] | undefined;
 	closedError: RequestError | undefined;
@@ -2025,6 +2027,7 @@ export class AcpAgent implements Agent {
 			extensionUserMessageTasks: new Set(),
 			lifetimeUnsubscribe: undefined,
 			commandMetadataUnsubscribe: undefined,
+			titleUnsubscribe: undefined,
 			lifetimeUpdatesReady: false,
 			pendingCompactionNotifications: undefined,
 		};
@@ -2844,6 +2847,12 @@ export class AcpAgent implements Agent {
 					});
 				});
 			}
+			record.titleUnsubscribe ??= watchGeneratedTitle(record.session.sessionManager, title =>
+				this.#connection.sessionUpdate({
+					sessionId,
+					update: { sessionUpdate: "session_info_update", title, updatedAt: new Date().toISOString() },
+				}),
+			);
 			void this.#emitBootstrapUpdates(sessionId, record);
 		}, ACP_BOOTSTRAP_RACE_GUARD_MS);
 	}
@@ -3574,6 +3583,7 @@ export class AcpAgent implements Agent {
 	async #disposeSessionRecord(record: ManagedSessionRecord, reason?: postmortem.Reason): Promise<void> {
 		record.lifetimeUnsubscribe?.();
 		record.commandMetadataUnsubscribe?.();
+		record.titleUnsubscribe?.();
 		record.pendingCompactionNotifications = undefined;
 		if (record.mcpManager) {
 			try {

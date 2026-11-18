@@ -15,7 +15,10 @@ packages/coding-agent/src/config/all-settings.ts 2 packages/coding-agent/test/co
 packages/coding-agent/src/config/model-registry.ts 15 packages/coding-agent/test/config/model-registry.test.ts packages/coding-agent/test/model-registry*.test.ts packages/coding-agent/test/model-discovery.test.ts packages/coding-agent/test/model-resolver.test.ts
 packages/coding-agent/src/mcp/tool-bridge.ts 2 packages/coding-agent/test/mcp*.test.ts packages/coding-agent/test/mcp/*.test.ts
 # acp-agent.ts also calls src/xsec/acp-fast-mode.ts for the Fast option: an import, _meta, the option and its config case.
-packages/coding-agent/src/modes/acp/acp-agent.ts 34 packages/coding-agent/test/acp-*.test.ts
+# It calls src/xsec/acp-auto-title.ts too, to push a generated session title: an import, a record field and its unsubscribe.
+packages/coding-agent/src/modes/acp/acp-agent.ts 44 packages/coding-agent/test/acp-*.test.ts
+# main.ts calls src/xsec/acp-auto-title.ts so an ACP host can opt in to session titles (PI_ACP_AUTO_TITLE): an import, the call, its use in the PI_NO_TITLE condition and in autoTitle.
+packages/coding-agent/src/main.ts 6 packages/coding-agent/test/acp-lazy-startup.test.ts packages/coding-agent/test/main-headless-timing.test.ts
 packages/coding-agent/src/secrets/index.ts 3 packages/coding-agent/test/secrets-obfuscator.test.ts packages/coding-agent/test/secrets-prefilter.test.ts
 packages/coding-agent/src/secrets/obfuscator.ts 40 packages/coding-agent/test/secrets-obfuscator.test.ts packages/coding-agent/test/secrets-fast-paths.test.ts packages/coding-agent/test/secrets-prefilter.test.ts
 packages/coding-agent/src/secrets/placeholder.ts 6 packages/coding-agent/test/secrets-obfuscator.test.ts packages/coding-agent/test/secrets-prefilter.test.ts

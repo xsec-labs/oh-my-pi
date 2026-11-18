@@ -2,6 +2,7 @@ import type { Context, DeveloperMessage, Message, Tool } from "@oh-my-pi/pi-ai";
 import { isRecord } from "@oh-my-pi/pi-utils";
 import { obfuscateMessages } from "../secrets/message-transform";
 import type { SecretObfuscator } from "../secrets/obfuscator";
+import { maskDerivedMessages, withDerivedValueNotice } from "./secret-derived-forms";
 
 // `obfuscateMessages` rewrites the user, tool result and assistant messages, and the developer messages a
 // user wrote. A developer message the harness wrote (an async job's result, a reminder), the system prompt
@@ -22,7 +23,8 @@ export function maskOutboundText(obfuscator: SecretObfuscator | undefined, text:
 export function maskOutboundMessages(obfuscator: SecretObfuscator | undefined, messages: Message[]): Message[] {
 	if (!obfuscator?.obfuscates()) return messages;
 	return obfuscator.batch(() => {
-		const obfuscated = obfuscateMessages(obfuscator, messages);
+		// Derived forms (digests, encodings) of a masked value come back in tool results: see secret-derived-forms.ts.
+		const obfuscated = maskDerivedMessages(obfuscator, obfuscateMessages(obfuscator, messages));
 		let changed = obfuscated !== messages;
 		const masked = obfuscated.map(message => {
 			const next = maskHarnessMessage(obfuscator, message);
@@ -42,7 +44,7 @@ export function maskOutboundContext(obfuscator: SecretObfuscator | undefined, co
 	return obfuscator.batch(() => {
 		const messages = maskOutboundMessages(obfuscator, context.messages);
 		const messaged = messages === context.messages ? context : { ...context, messages };
-		const systemPrompt = maskStrings(obfuscator, messaged.systemPrompt);
+		const systemPrompt = withDerivedValueNotice(maskStrings(obfuscator, messaged.systemPrompt));
 		const tools = maskTools(obfuscator, messaged.tools);
 		const inactiveTools = maskTools(obfuscator, messaged.inactiveTools);
 		if (

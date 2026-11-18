@@ -1,6 +1,7 @@
 import { describe, expect, it } from "bun:test";
 import type { Context, DeveloperMessage, Message, Tool } from "@oh-my-pi/pi-ai";
 import { SecretObfuscator } from "../../src/secrets";
+import { DERIVED_VALUE_NOTICE } from "../../src/xsec/secret-derived-forms";
 import { maskOutboundContext, maskOutboundMessages, maskOutboundText } from "../../src/xsec/outbound-context";
 
 /** A project folder name a secret rule matches. Made up for this test. */
@@ -72,9 +73,11 @@ describe("masking outside the messages", () => {
 
 		// The provider receives neither the system prompt nor the tool definitions with the folder name in them.
 		expect(masked.systemPrompt?.join("\n")).not.toContain(FOLDER);
+		// The notice about derived forms follows the prompt; the prompt itself is what the placeholders restore.
+		expect(masked.systemPrompt?.at(-1)).toBe(DERIVED_VALUE_NOTICE);
 		expect(JSON.stringify(masked.tools)).not.toContain(FOLDER);
 		// The placeholders are the session's own, so they restore to exactly the text that was masked.
-		expect(obfuscator.deobfuscate(masked.systemPrompt?.join("\n") ?? "")).toBe(SYSTEM_PROMPT.join("\n"));
+		expect(obfuscator.deobfuscate(masked.systemPrompt?.slice(0, -1).join("\n") ?? "")).toBe(SYSTEM_PROMPT.join("\n"));
 		expect(obfuscator.deobfuscate(masked.tools?.[0]?.description ?? "")).toBe(readTool.description);
 	});
 
@@ -105,6 +108,6 @@ describe("masking a context that is already masked", () => {
 
 		// A pass that rewrote a placeholder would send the model a token the session cannot restore.
 		expect(twice).toEqual(once);
-		expect(obfuscator.deobfuscate(twice.systemPrompt?.join("\n") ?? "")).toBe(SYSTEM_PROMPT.join("\n"));
+		expect(obfuscator.deobfuscate(twice.systemPrompt?.slice(0, -1).join("\n") ?? "")).toBe(SYSTEM_PROMPT.join("\n"));
 	});
 });

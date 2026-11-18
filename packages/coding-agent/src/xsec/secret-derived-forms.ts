@@ -64,8 +64,9 @@ interface DerivedForms {
 	digests: string[];
 }
 
-const formsBySecret = new Map<string, DerivedForms>();
-const MAX_CACHED_SECRETS = 2048;
+/** Forms by value, kept per obfuscator (a matcher is rebuilt whenever a value is added) and released with it. */
+type FormsCache = Map<string, DerivedForms>;
+const formsByObfuscator = new WeakMap<SecretObfuscator, FormsCache>();
 
 function urlSafe(text: string): string {
 	return text.replaceAll("+", "-").replaceAll("/", "_");
@@ -102,8 +103,8 @@ function percentEncode(value: string): string | undefined {
 	}
 }
 
-function deriveForms(secret: string): DerivedForms {
-	const cached = formsBySecret.get(secret);
+function deriveForms(secret: string, cache: FormsCache): DerivedForms {
+	const cached = cache.get(secret);
 	if (cached !== undefined) return cached;
 	const exact = new Set<string>();
 	const folded = new Set<string>();
@@ -125,8 +126,7 @@ function deriveForms(secret: string): DerivedForms {
 		}
 	}
 	const forms: DerivedForms = { exact: [...exact], folded: [...folded], digests: [...digests] };
-	if (formsBySecret.size >= MAX_CACHED_SECRETS) formsBySecret.clear();
-	formsBySecret.set(secret, forms);
+	cache.set(secret, forms);
 	return forms;
 }
 
@@ -165,7 +165,7 @@ function alternations(literals: Iterable<string>, flags: string): RegExp[] {
 
 /** Longest text kept in the per-matcher result cache, and how many texts. */
 const MAX_MEMO_TEXT = 1 << 20;
-const MAX_MEMO_ENTRIES = 512;
+const MAX_MEMO_CHARS = 8 << 20;
 
 class DerivedMatcher {
 	readonly values: readonly string[];
@@ -174,14 +174,15 @@ class DerivedMatcher {
 	readonly #prefixes = new Map<string, string[]>();
 	readonly #suffixes = new Map<string, string[]>();
 	readonly #memo = new Map<string, string>();
+	#memoChars = 0;
 
-	constructor(secrets: readonly string[]) {
+	constructor(secrets: readonly string[], cache: FormsCache) {
 		this.values = secrets;
 		const exact: string[] = [];
 		const folded: string[] = [];
 		for (const secret of secrets) {
 			if (secret.length === 0) continue;
-			const forms = deriveForms(secret);
+			const forms = deriveForms(secret, cache);
 			exact.push(...forms.exact);
 			folded.push(...forms.folded, ...forms.digests);
 			for (const digest of forms.digests) {
@@ -204,8 +205,12 @@ class DerivedMatcher {
 		if (memoized !== undefined) return memoized;
 		const masked = this.#maskNow(text);
 		if (text.length <= MAX_MEMO_TEXT) {
-			if (this.#memo.size >= MAX_MEMO_ENTRIES) this.#memo.clear();
+			if (this.#memoChars + text.length > MAX_MEMO_CHARS) {
+				this.#memo.clear();
+				this.#memoChars = 0;
+			}
 			this.#memo.set(text, masked);
+			this.#memoChars += text.length;
 		}
 		return masked;
 	}
@@ -258,7 +263,9 @@ function matcherOf(obfuscator: SecretObfuscator): DerivedMatcher {
 	const values = obfuscator.secretValues();
 	const known = matchers.get(obfuscator);
 	if (known !== undefined && sameValues(known.values, values)) return known;
-	const built = new DerivedMatcher(values);
+	let cache = formsByObfuscator.get(obfuscator);
+	if (cache === undefined) formsByObfuscator.set(obfuscator, (cache = new Map()));
+	const built = new DerivedMatcher(values, cache);
 	matchers.set(obfuscator, built);
 	return built;
 }

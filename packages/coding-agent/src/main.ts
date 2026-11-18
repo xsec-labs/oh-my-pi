@@ -20,7 +20,7 @@ import {
 	setProjectDir,
 	VERSION,
 } from "@oh-my-pi/pi-utils/dirs";
-import { $env, $flag, isBunTestRuntime, isCompiledBinary, setInteractiveHost } from "@oh-my-pi/pi-utils/env";
+import { $env, isBunTestRuntime, isCompiledBinary, setInteractiveHost } from "@oh-my-pi/pi-utils/env";
 import * as logger from "@oh-my-pi/pi-utils/logger";
 import * as postmortem from "@oh-my-pi/pi-utils/postmortem";
 import { fuzzyFilter } from "@oh-my-pi/pi-tui/fuzzy";
@@ -149,7 +149,7 @@ import type { LspStartupServerInfo } from "./tools";
 import { sanitizeDisplayWarnings } from "@oh-my-pi/pi-tui/render/render-utils";
 import { getChangelogPath, readLastChangelogVersion, resolveStartupChangelogForDisplay } from "./utils/changelog";
 import { EventBus } from "./utils/event-bus";
-import { cfgTitleGenerator } from "./utils/title-settings";
+import { enableAcpAutoTitle } from "./xsec/acp-auto-title";
 import { resolveFirstLaunchPythonEvalWarning } from "./eval/startup-warning";
 import { CliUsageError } from "./cli/usage-error";
 import { scheduleGcAutoCompress } from "./cli/gc-auto-compress";
@@ -2032,10 +2032,7 @@ export async function runRootCommand(
 		if (parsedArgs.noPty || parsedArgs.mode === "rpc-ui") {
 			Bun.env.PI_NO_PTY = "1";
 		}
-		// An ACP host that shows session names (xSec Desktop) opts in with `PI_ACP_AUTO_TITLE=1`:
-		// the unnamed session is then titled from the first operator message, plain (no card) and
-		// pushed as `session_info_update`. `--no-title` still wins.
-		const acpAutoTitle = parsedArgs.mode === "acp" && !parsedArgs.noTitle && $flag("PI_ACP_AUTO_TITLE");
+		const acpAutoTitle = enableAcpAutoTitle(parsedArgs, settingsInstance);
 		if (
 			parsedArgs.noTitle ||
 			parsedArgs.mode === "rpc" ||
@@ -2043,8 +2040,6 @@ export async function runRootCommand(
 			(parsedArgs.mode === "acp" && !acpAutoTitle)
 		) {
 			Bun.env.PI_NO_TITLE = "1";
-		} else if (acpAutoTitle) {
-			cfgTitleGenerator.override(settingsInstance, "tiny");
 		}
 
 		// Initialize discovery system with settings for provider persistence

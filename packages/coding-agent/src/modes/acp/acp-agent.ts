@@ -105,6 +105,7 @@ import {
 } from "../../tts/models";
 import { canonicalizeMessage } from "@oh-my-pi/pi-tui/chat/thinking-display";
 import { handleXsecExtMethod, isXsecExtMethod, resumeIf } from "../../xsec/acp";
+import { watchGeneratedTitle } from "../../xsec/acp-auto-title";
 import { buildFastConfigOption, FAST_CONFIG_ID, fastModeMeta, setFastModeOption } from "../../xsec/acp-fast-mode";
 import { restoreAcpSessionEvents, restoreAcpText, restoredSessionContext } from "../../xsec/acp-secret-stream";
 import { LateMcpReporter } from "../../xsec/mcp-late-status";
@@ -416,7 +417,6 @@ type ManagedSessionRecord = {
 	// after the bootstrap guard or a client prompt proves the session is known.
 	lifetimeUnsubscribe: (() => void) | undefined;
 	commandMetadataUnsubscribe: (() => void) | undefined;
-	/** Pushes a generated (`auto`) session title to the client once it lands after the prompt response. */
 	titleUnsubscribe: (() => void) | undefined;
 	lifetimeUpdatesReady: boolean;
 	pendingCompactionNotifications: AcpCompactionNotification[] | undefined;
@@ -2847,26 +2847,12 @@ export class AcpAgent implements Agent {
 					});
 				});
 			}
-			if (!record.titleUnsubscribe) {
-				record.titleUnsubscribe = record.session.sessionManager.onSessionNameChanged(() => {
-					// `/rename` and `/new` notify the client themselves; only the
-					// asynchronous generator needs this push, and its title can land
-					// after the prompt response that would otherwise carry it.
-					if (record.session.sessionManager.titleSource !== "auto") return;
-					void this.#connection
-						.sessionUpdate({
-							sessionId,
-							update: {
-								sessionUpdate: "session_info_update",
-								title: record.session.sessionName,
-								updatedAt: new Date().toISOString(),
-							},
-						})
-						.catch(error => {
-							logger.warn("Failed to emit ACP session title update", { error: String(error) });
-						});
-				});
-			}
+			record.titleUnsubscribe ??= watchGeneratedTitle(record.session.sessionManager, title =>
+				this.#connection.sessionUpdate({
+					sessionId,
+					update: { sessionUpdate: "session_info_update", title, updatedAt: new Date().toISOString() },
+				}),
+			);
 			void this.#emitBootstrapUpdates(sessionId, record);
 		}, ACP_BOOTSTRAP_RACE_GUARD_MS);
 	}

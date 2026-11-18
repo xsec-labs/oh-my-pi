@@ -4,7 +4,7 @@ import * as os from "node:os";
 import * as path from "node:path";
 import { Agent } from "@oh-my-pi/pi-agent-core";
 import { buildModel } from "@oh-my-pi/pi-catalog/build";
-import { cfgTitleGenerator } from "@oh-my-pi/pi-coding-agent/utils/title-settings";
+import { cfgTitleGenerator, cfgTitleRefreshOnReplan } from "@oh-my-pi/pi-coding-agent/utils/title-settings";
 import { Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
 import { clearOmpExtensionCliRoots } from "@oh-my-pi/pi-coding-agent/discovery/omp-extension-roots";
 import { AcpAgent } from "@oh-my-pi/pi-coding-agent/modes/acp/acp-agent";
@@ -35,7 +35,12 @@ afterEach(() => {
 	clearOmpExtensionCliRoots();
 });
 
-type Startup = { noTitleEnv: string | undefined; autoTitle: boolean | undefined; generator: string };
+type Startup = {
+	noTitleEnv: string | undefined;
+	autoTitle: boolean | undefined;
+	generator: string;
+	refreshOnReplan: boolean;
+};
 
 /** Boots `omp --mode acp` up to the first `session/new` and reports what the host asked for. */
 async function startAcp(env: { PI_ACP_AUTO_TITLE?: string; noTitle?: boolean }): Promise<Startup> {
@@ -75,6 +80,7 @@ async function startAcp(env: { PI_ACP_AUTO_TITLE?: string; noTitle?: boolean }):
 						noTitleEnv: Bun.env.PI_NO_TITLE,
 						autoTitle: options?.autoTitle,
 						generator: cfgTitleGenerator.get(settings),
+						refreshOnReplan: cfgTitleRefreshOnReplan.get(settings),
 					};
 					throw new Error(STOP);
 				},
@@ -103,6 +109,7 @@ describe("PI_ACP_AUTO_TITLE", () => {
 		const observed = await startAcp({});
 		expect(observed.noTitleEnv).toBe("1");
 		expect(observed.autoTitle).not.toBe(true);
+		expect(observed.refreshOnReplan).toBe(true);
 	});
 
 	it("names ACP sessions with plain titles when the host opts in", async () => {
@@ -110,6 +117,7 @@ describe("PI_ACP_AUTO_TITLE", () => {
 		expect(observed.noTitleEnv).toBeUndefined();
 		expect(observed.autoTitle).toBe(true);
 		expect(observed.generator).toBe("tiny");
+		expect(observed.refreshOnReplan).toBe(false);
 	});
 
 	it("lets --no-title win over the opt-in", async () => {
@@ -191,6 +199,16 @@ async function openSession(session: AgentSession): Promise<InfoUpdate[]> {
 }
 
 describe("ACP session title push", () => {
+	let previousAuto: string | undefined;
+	beforeEach(() => {
+		previousAuto = Bun.env.PI_ACP_AUTO_TITLE;
+		Bun.env.PI_ACP_AUTO_TITLE = "1";
+	});
+	afterEach(() => {
+		if (previousAuto === undefined) delete Bun.env.PI_ACP_AUTO_TITLE;
+		else Bun.env.PI_ACP_AUTO_TITLE = previousAuto;
+	});
+
 	it("pushes a generated title that lands after the session was opened", async () => {
 		const session = createSession();
 		const updates = await openSession(session);
@@ -212,6 +230,17 @@ describe("ACP session title push", () => {
 		const before = updates.length;
 
 		await session.sessionManager.setSessionName("Mine", "user");
+
+		expect(updates.slice(before).filter(update => update.sessionUpdate === "session_info_update")).toEqual([]);
+	});
+
+	it("subscribes to nothing when the host did not opt in", async () => {
+		delete Bun.env.PI_ACP_AUTO_TITLE;
+		const session = createSession();
+		const updates = await openSession(session);
+		const before = updates.length;
+
+		await session.sessionManager.setSessionName("Fix login redirect", "auto");
 
 		expect(updates.slice(before).filter(update => update.sessionUpdate === "session_info_update")).toEqual([]);
 	});

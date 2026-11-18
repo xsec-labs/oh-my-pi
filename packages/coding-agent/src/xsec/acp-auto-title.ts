@@ -8,29 +8,33 @@
  */
 import type { Settings } from "../config/settings";
 import type { SessionManager } from "../session/session-manager";
-import { cfgTitleGenerator } from "../utils/title-settings";
+import { cfgTitleGenerator, cfgTitleRefreshOnReplan } from "../utils/title-settings";
 import { $flag } from "@oh-my-pi/pi-utils/env";
 import * as logger from "@oh-my-pi/pi-utils/logger";
 
 /**
  * Whether this ACP launch names sessions: the host set `PI_ACP_AUTO_TITLE` and `--no-title` is absent. When it is,
- * the title generator becomes the plain `tiny` one for this process, because a card (icon and code) does not fit a
- * host's session list.
+ * this process overrides (in memory, never saved) the user's `title.generator` with the plain `tiny` one, because a
+ * card (icon and code) does not fit a host's session list, and turns `title.refreshOnReplan` off so a session is
+ * named once and not renamed by a later todo replan.
  */
 export function enableAcpAutoTitle(args: { mode?: string; noTitle?: boolean }, settings: Settings): boolean {
 	if (args.mode !== "acp" || args.noTitle || !$flag("PI_ACP_AUTO_TITLE")) return false;
 	cfgTitleGenerator.override(settings, "tiny");
+	cfgTitleRefreshOnReplan.override(settings, false);
 	return true;
 }
 
 /**
  * Calls `notify` with the session's name whenever a generated (`auto`) title lands. `/rename` and `/new` tell the
- * client themselves, so a user-set title is left to them. Returns the unsubscribe function.
+ * client themselves, so a user-set title is left to them. Without `PI_ACP_AUTO_TITLE` nothing is subscribed, so a
+ * host that did not opt in sees no change. Returns the unsubscribe function.
  */
 export function watchGeneratedTitle(
 	sessionManager: SessionManager,
 	notify: (title: string | undefined) => Promise<void>,
 ): () => void {
+	if (!$flag("PI_ACP_AUTO_TITLE")) return () => {};
 	return sessionManager.onSessionNameChanged(() => {
 		if (sessionManager.titleSource !== "auto") return;
 		void notify(sessionManager.getSessionName()).catch(error => {

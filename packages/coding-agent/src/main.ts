@@ -149,7 +149,7 @@ import type { LspStartupServerInfo } from "./tools";
 import { sanitizeDisplayWarnings } from "@oh-my-pi/pi-tui/render/render-utils";
 import { getChangelogPath, readLastChangelogVersion, resolveStartupChangelogForDisplay } from "./utils/changelog";
 import { EventBus } from "./utils/event-bus";
-import { enableAcpAutoTitle } from "./xsec/acp-auto-title";
+import { acpTitleSystemPrompt, enableAcpAutoTitle } from "./xsec/acp-auto-title";
 import { resolveFirstLaunchPythonEvalWarning } from "./eval/startup-warning";
 import { CliUsageError } from "./cli/usage-error";
 import { scheduleGcAutoCompress } from "./cli/gc-auto-compress";
@@ -584,7 +584,9 @@ export function createAcpSessionFactory(args: AcpSessionFactoryOptions): AcpSess
 		// replan-driven title refresh consistent with the target project's
 		// policy (PR #3736 follow-up).
 		const titleSystemPromptSource = discoverTitleSystemPromptFile(cwd);
-		const titleSystemPrompt = await resolvePromptInput(titleSystemPromptSource, "title system prompt");
+		const titleSystemPrompt = acpTitleSystemPrompt(
+			await resolvePromptInput(titleSystemPromptSource, "title system prompt"),
+		);
 		const eventBus = new EventBus();
 		const trustedExtensions =
 			args.parsedArgs.trustedExtensions && args.parsedArgs.trustedExtensions.length > 0

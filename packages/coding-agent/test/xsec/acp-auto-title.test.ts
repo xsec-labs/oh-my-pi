@@ -13,6 +13,7 @@ import { convertToLlm } from "@oh-my-pi/pi-coding-agent/session/messages";
 import { SessionManager } from "@oh-my-pi/pi-coding-agent/session/session-manager";
 import type { AgentSideConnection } from "@oh-my-pi/pi-utils/acp";
 import { TempDir } from "@oh-my-pi/pi-utils";
+import { acpTitleSystemPrompt } from "@oh-my-pi/pi-coding-agent/xsec/acp-auto-title";
 import { createInMemoryAuthStorage } from "../helpers/agent-session-setup";
 
 const STOP = "stop test ACP mode";
@@ -40,6 +41,7 @@ type Startup = {
 	autoTitle: boolean | undefined;
 	generator: string;
 	refreshOnReplan: boolean;
+	titleSystemPrompt: string | undefined;
 };
 
 /** Boots `omp --mode acp` up to the first `session/new` and reports what the host asked for. */
@@ -81,6 +83,7 @@ async function startAcp(env: { PI_ACP_AUTO_TITLE?: string; noTitle?: boolean }):
 						autoTitle: options?.autoTitle,
 						generator: cfgTitleGenerator.get(settings),
 						refreshOnReplan: cfgTitleRefreshOnReplan.get(settings),
+						titleSystemPrompt: options?.titleSystemPrompt,
 					};
 					throw new Error(STOP);
 				},
@@ -118,6 +121,33 @@ describe("PI_ACP_AUTO_TITLE", () => {
 		expect(observed.autoTitle).toBe(true);
 		expect(observed.generator).toBe("tiny");
 		expect(observed.refreshOnReplan).toBe(false);
+	});
+
+	it("asks for titles in the language of the user's message when the host opts in", async () => {
+		const observed = await startAcp({ PI_ACP_AUTO_TITLE: "1" });
+		const prompt = observed.titleSystemPrompt ?? "";
+		expect(prompt).toContain("language of the user's message");
+		expect(prompt).toContain("<title>");
+		// A Chinese message is answered with a Chinese title, and no title in the prompt's examples is an English
+		// translation of a Chinese message.
+		expect(prompt).toMatch(/[\u4e00-\u9fff]/);
+	});
+
+	it("keeps the bundled title prompt when the host did not opt in", async () => {
+		const observed = await startAcp({});
+		expect(observed.titleSystemPrompt).toBeUndefined();
+	});
+
+	it("lets the project's TITLE_SYSTEM.md win over the language prompt", () => {
+		const previous = Bun.env.PI_ACP_AUTO_TITLE;
+		Bun.env.PI_ACP_AUTO_TITLE = "1";
+		try {
+			expect(acpTitleSystemPrompt("Name sessions in pirate.")).toBe("Name sessions in pirate.");
+			expect(acpTitleSystemPrompt(undefined)).toContain("language of the user's message");
+		} finally {
+			if (previous === undefined) delete Bun.env.PI_ACP_AUTO_TITLE;
+			else Bun.env.PI_ACP_AUTO_TITLE = previous;
+		}
 	});
 
 	it("lets --no-title win over the opt-in", async () => {

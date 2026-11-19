@@ -16,7 +16,7 @@ packages/coding-agent/src/config/model-registry.ts 15 packages/coding-agent/test
 packages/coding-agent/src/mcp/tool-bridge.ts 2 packages/coding-agent/test/mcp*.test.ts packages/coding-agent/test/mcp/*.test.ts
 # acp-agent.ts also calls src/xsec/acp-fast-mode.ts for the Fast option: an import, _meta, the option and its config case.
 # It calls src/xsec/acp-auto-title.ts too, to push a generated session title: an import, a record field and its unsubscribe.
-packages/coding-agent/src/modes/acp/acp-agent.ts 44 packages/coding-agent/test/acp-*.test.ts
+packages/coding-agent/src/modes/acp/acp-agent.ts 46 packages/coding-agent/test/acp-*.test.ts
 # main.ts calls src/xsec/acp-auto-title.ts so an ACP host can opt in to session titles (PI_ACP_AUTO_TITLE): an import, the call, its use in the PI_NO_TITLE condition and in autoTitle, and the session factory's title prompt (it follows the user's language).
 packages/coding-agent/src/main.ts 10 packages/coding-agent/test/acp-lazy-startup.test.ts packages/coding-agent/test/main-headless-timing.test.ts
 packages/coding-agent/src/secrets/index.ts 3 packages/coding-agent/test/secrets-obfuscator.test.ts packages/coding-agent/test/secrets-prefilter.test.ts
@@ -25,7 +25,7 @@ packages/coding-agent/src/secrets/placeholder.ts 6 packages/coding-agent/test/se
 packages/coding-agent/src/secrets/settings.ts 4 packages/coding-agent/test/secrets-obfuscator.test.ts
 packages/coding-agent/src/sdk.ts 13 packages/coding-agent/test/date-cwd-reminder.test.ts packages/coding-agent/test/secrets-*.test.ts packages/coding-agent/test/sdk-*.test.ts packages/coding-agent/test/sdk-session-isolation.test.ts
 packages/coding-agent/src/session/session-handoff.ts 4 packages/coding-agent/test/agent-session-handoff.test.ts
-packages/coding-agent/src/session/agent-session.ts 38 packages/coding-agent/test/agent-session-message-pipeline.test.ts packages/coding-agent/test/agent-session-side-state.test.ts packages/coding-agent/test/btw-*.test.ts packages/coding-agent/test/session-stop-continuation-recap.test.ts packages/coding-agent/test/extensions-runner.test.ts packages/coding-agent/test/title-generator.test.ts packages/coding-agent/test/title-drift-classifier.test.ts
+packages/coding-agent/src/session/agent-session.ts 46 packages/coding-agent/test/agent-session-message-pipeline.test.ts packages/coding-agent/test/agent-session-side-state.test.ts packages/coding-agent/test/btw-*.test.ts packages/coding-agent/test/session-stop-continuation-recap.test.ts packages/coding-agent/test/extensions-runner.test.ts packages/coding-agent/test/title-generator.test.ts packages/coding-agent/test/title-drift-classifier.test.ts
 packages/coding-agent/src/session/session-provider-boundary.ts 6 packages/coding-agent/test/agent-session-message-pipeline.test.ts packages/coding-agent/test/compaction-speculation.test.ts
 packages/coding-agent/src/session/session-maintenance.ts 4 packages/coding-agent/test/session-maintenance-compaction-cache-key.test.ts packages/coding-agent/test/compaction-speculation.test.ts
 packages/coding-agent/src/extensibility/extensions/wrapper.ts 6 packages/coding-agent/test/hook-tool-wrapper-input.test.ts packages/coding-agent/test/agent-session-acp-permission.test.ts packages/coding-agent/test/extensions-runner.test.ts
@@ -36,3 +36,9 @@ packages/coding-agent/test/agent-session-message-pipeline.test.ts 8 packages/cod
 packages/coding-agent/src/launch/broker.ts 10 packages/coding-agent/test/launch/broker-*.test.ts packages/coding-agent/test/launch/daemon-*.test.ts packages/coding-agent/test/launch/spawn-options.test.ts
 packages/coding-agent/src/launch/protocol.ts 3 packages/coding-agent/test/launch/protocol.test.ts
 packages/coding-agent/src/tools/browser/shared-daemon.ts 3 packages/coding-agent/test/tools/browser-launch.test.ts packages/coding-agent/test/tools/browser-shared-wedge.test.ts
+# pi.withdrawQueuedMessages lets an extension take back queued steer messages (src/xsec/withdraw-queued.ts): the API method, its runtime action and the hosts' one-line wiring.
+packages/coding-agent/src/extensibility/extensions/loader.ts 8 packages/coding-agent/test/extensions-runner.test.ts
+packages/coding-agent/src/extensibility/extensions/runner.ts 1 packages/coding-agent/test/extensions-runner.test.ts
+packages/coding-agent/src/extensibility/extensions/types.ts 5 packages/coding-agent/test/extensions-runner.test.ts
+packages/coding-agent/src/modes/controllers/extension-ui-controller.ts 4 packages/coding-agent/test/extensions-runner.test.ts
+packages/coding-agent/src/modes/runtime-init.ts 1 packages/coding-agent/test/extensions-runner.test.ts

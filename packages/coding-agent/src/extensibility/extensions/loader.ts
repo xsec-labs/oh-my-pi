@@ -141,6 +141,10 @@ export class ExtensionRuntime implements IExtensionRuntime {
 		throw new ExtensionRuntimeNotInitializedError();
 	}
 
+	withdrawQueuedMessages(): number {
+		throw new ExtensionRuntimeNotInitializedError();
+	}
+
 	sendUserMessage(): Promise<void> {
 		throw new ExtensionRuntimeNotInitializedError();
 	}
@@ -374,6 +378,10 @@ class ConcreteExtensionAPI implements ExtensionAPI, IExtensionRuntime {
 		options?: { triggerTurn?: boolean; deliverAs?: "steer" | "followUp" | "nextTurn" | "aside" },
 	): void {
 		this.runtime.sendMessage(message, options);
+	}
+
+	withdrawQueuedMessages(customType: string, match: (details: unknown) => boolean): number {
+		return this.runtime.withdrawQueuedMessages(customType, match);
 	}
 
 	sendUserMessage(content: string | (TextContent | ImageContent)[], options?: SendUserMessageOptions): Promise<void> {

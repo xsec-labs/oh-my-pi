@@ -3363,6 +3363,8 @@ export class AcpAgent implements Agent {
 						logger.warn("ACP extension sendMessage failed", { error });
 					});
 				},
+				withdrawQueuedMessages: (customType, match) =>
+					record.session.withdrawQueuedCustomMessages(customType, match),
 				sendUserMessage: (content, options) => {
 					const task = record.session.sendUserMessage(content, options);
 					this.#trackExtensionUserMessage(record, task);

@@ -229,6 +229,7 @@ import { type AgentRef, AgentRegistry, type AgentRegistryApi } from "../registry
 import { cfgSecretsEnabled } from "../secrets/settings";
 import { credentialShapeRedaction } from "../xsec/secret-builtin-patterns";
 import { maskOutboundContext, maskOutboundText } from "../xsec/outbound-context";
+import { withdrawQueuedCustomMessages as withdrawQueued } from "../xsec/withdraw-queued";
 import { releaseSharpshooterSession } from "../sharpshooter/backend";
 import { flushSharpshooterExtraction } from "../sharpshooter/extract";
 import { toolReadsSkillUris } from "../system-prompt";
@@ -11345,6 +11346,13 @@ export class AgentSession implements SettingsScope, AgentViewSession {
 		const kept = (queue: readonly AgentMessage[]): AgentMessage[] => queue.filter(message => !dropped.has(message));
 		this.agent.replaceQueues(kept(this.agent.peekSteeringQueue()), kept(this.agent.peekFollowUpQueue()));
 		this.#reconcileQueuedMessageDrain();
+	}
+
+	/** Takes back queued custom messages an extension sent (see src/xsec/withdraw-queued.ts). */
+	withdrawQueuedCustomMessages(customType: string, match: (details: unknown) => boolean): number {
+		const removed = withdrawQueued(this.agent, customType, match);
+		if (removed > 0) this.#reconcileQueuedMessageDrain();
+		return removed;
 	}
 
 	/**

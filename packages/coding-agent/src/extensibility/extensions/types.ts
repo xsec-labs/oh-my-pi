@@ -2155,6 +2155,9 @@ export interface ExtensionAPI {
 		options?: { triggerTurn?: boolean; deliverAs?: "steer" | "followUp" | "nextTurn" | "aside" },
 	): void;
 
+	/** Take back queued steer/followUp custom messages of `customType` (picked by `match` on `details`) the model has not read; returns how many. */
+	withdrawQueuedMessages(customType: string, match: (details: unknown) => boolean): number;
+
 	/** Send a user prompt: idle starts a turn; streaming queues as steer unless deliverAs is set.
 	 *  `deliverAs: "aside"` injects at the next step boundary without interrupting the in-flight tool
 	 *  batch while streaming, except that it ends a running interruptible `wait`; idle still starts a turn.
@@ -2437,6 +2440,7 @@ export interface ExtensionRuntimeState {
 /** Action implementations for ExtensionAPI methods. */
 export interface ExtensionActions {
 	sendMessage: SendMessageHandler;
+	withdrawQueuedMessages?: (customType: string, match: (details: unknown) => boolean) => number;
 	sendUserMessage: SendUserMessageHandler;
 	appendEntry: AppendEntryHandler;
 	setLabel: (targetId: string, label: string | undefined) => void;
@@ -2494,6 +2498,7 @@ export interface ExtensionCommandContextActions {
 
 /** Full runtime = state + actions, including host-compatible service-tier fallbacks. */
 export interface ExtensionRuntime extends ExtensionRuntimeState, ExtensionActions {
+	withdrawQueuedMessages: (customType: string, match: (details: unknown) => boolean) => number;
 	getServiceTiers: GetServiceTiersHandler;
 	setServiceTier: SetServiceTierHandler;
 }

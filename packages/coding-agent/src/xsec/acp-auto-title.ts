@@ -10,7 +10,9 @@ import type { Settings } from "../config/settings";
 import type { SessionManager } from "../session/session-manager";
 import { cfgTitleGenerator, cfgTitleRefreshOnReplan } from "../utils/title-settings";
 import { $flag } from "@oh-my-pi/pi-utils/env";
+import acpTitlePrompt from "./acp-auto-title-prompt.md" with { type: "text" };
 import * as logger from "@oh-my-pi/pi-utils/logger";
+import { prompt } from "@oh-my-pi/pi-utils";
 
 /**
  * Whether this ACP launch names sessions: the host set `PI_ACP_AUTO_TITLE` and `--no-title` is absent. When it is,
@@ -23,6 +25,17 @@ export function enableAcpAutoTitle(args: { mode?: string; noTitle?: boolean }, s
 	cfgTitleGenerator.override(settings, "tiny");
 	cfgTitleRefreshOnReplan.override(settings, false);
 	return true;
+}
+
+/**
+ * The title system prompt for an ACP session: the user's `TITLE_SYSTEM.md` when there is one, else, for a host that
+ * opted in with `PI_ACP_AUTO_TITLE`, a prompt that makes the title follow the language of the user's message (the
+ * bundled prompt is English-only and gave Chinese messages English titles). Without the opt-in the bundled prompt
+ * stays in force, so a host that did not ask sees no change.
+ */
+export function acpTitleSystemPrompt(override: string | undefined): string | undefined {
+	if (override !== undefined || !$flag("PI_ACP_AUTO_TITLE")) return override;
+	return prompt.render(acpTitlePrompt);
 }
 
 /**

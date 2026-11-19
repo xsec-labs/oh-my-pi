@@ -11350,7 +11350,7 @@ export class AgentSession implements SettingsScope, AgentViewSession {
 
 	/** Takes back queued custom messages an extension sent (see src/xsec/withdraw-queued.ts). */
 	withdrawQueuedCustomMessages(customType: string, match: (details: unknown) => boolean): number {
-		const removed = withdrawQueued(this.agent, customType, match);
+		const removed = withdrawQueued(this.agent, this.#irc, customType, match);
 		if (removed > 0) this.#reconcileQueuedMessageDrain();
 		return removed;
 	}

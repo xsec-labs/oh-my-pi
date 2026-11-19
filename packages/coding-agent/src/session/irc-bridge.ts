@@ -162,6 +162,14 @@ export class IrcBridge {
 		this.#asides.push(...records);
 	}
 
+	/** Removes the queued asides `match` selects (an extension's `deliverAs: "aside"` sends); returns how many. */
+	withdrawAsides(match: (record: AgentMessage) => boolean): number {
+		const kept = this.#asides.filter(record => !match(record));
+		const removed = this.#asides.length - kept.length;
+		this.#asides = kept;
+		return removed;
+	}
+
 	/** Parks wake-intended records while a pooled contract owns the worker. Unlike
 	 *  asides, these are invisible to turn injection (`flushPending`, the loop
 	 *  aside poll) and resume into a monitored wake once the contract clears. */

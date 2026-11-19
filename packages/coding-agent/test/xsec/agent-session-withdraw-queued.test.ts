@@ -41,86 +41,88 @@ describe("AgentSession.withdrawQueuedCustomMessages", () => {
 		AsyncJobManager.resetForTests();
 	});
 
-	it("takes back a queued steer by its details before the model reads it, and leaves the rest", async () => {
-		const model = createMockModel({ provider: "openai", id: "gpt-test" }).model;
-		const modelRegistry = new ModelRegistry(authStorage);
-		const contexts: Context[] = [];
-		const started = Promise.withResolvers<void>();
-		const release = Promise.withResolvers<void>();
-		const slowTool: AgentTool = {
-			name: "slow",
-			label: "Slow",
-			description: "Blocks until released",
-			parameters: type({}),
-			execute: async () => {
-				started.resolve();
-				await release.promise;
-				return { content: [{ type: "text", text: "SLOW_DONE" }] };
-			},
-		};
-		let callCount = 0;
-		const agent = new Agent({
-			getApiKey: () => "test-key",
-			initialState: { model, systemPrompt: ["Test"], tools: [slowTool], messages: [] },
-			convertToLlm,
-			streamFn: (_model, context) => {
-				contexts.push(context);
-				const first = callCount++ === 0;
-				const message: AssistantMessage = {
-					role: "assistant",
-					content: first
-						? [{ type: "toolCall", id: "tc-0", name: "slow", arguments: {} }]
-						: [{ type: "text", text: "Done." }],
-					api: model.api,
-					provider: model.provider,
-					model: model.id,
-					usage: zeroUsage,
-					stopReason: first ? "toolUse" : "stop",
-					timestamp: Date.now(),
-				};
-				const stream = new AssistantMessageEventStream();
-				queueMicrotask(() => {
-					stream.push({ type: "start", partial: message });
-					stream.push({ type: "done", reason: first ? "toolUse" : "stop", message });
-				});
-				return stream;
-			},
+	for (const deliverAs of ["steer", "aside"] as const) {
+		it(`takes back a queued ${deliverAs} by its details before the model reads it, and leaves the rest`, async () => {
+			const model = createMockModel({ provider: "openai", id: "gpt-test" }).model;
+			const modelRegistry = new ModelRegistry(authStorage);
+			const contexts: Context[] = [];
+			const started = Promise.withResolvers<void>();
+			const release = Promise.withResolvers<void>();
+			const slowTool: AgentTool = {
+				name: "slow",
+				label: "Slow",
+				description: "Blocks until released",
+				parameters: type({}),
+				execute: async () => {
+					started.resolve();
+					await release.promise;
+					return { content: [{ type: "text", text: "SLOW_DONE" }] };
+				},
+			};
+			let callCount = 0;
+			const agent = new Agent({
+				getApiKey: () => "test-key",
+				initialState: { model, systemPrompt: ["Test"], tools: [slowTool], messages: [] },
+				convertToLlm,
+				streamFn: (_model, context) => {
+					contexts.push(context);
+					const first = callCount++ === 0;
+					const message: AssistantMessage = {
+						role: "assistant",
+						content: first
+							? [{ type: "toolCall", id: "tc-0", name: "slow", arguments: {} }]
+							: [{ type: "text", text: "Done." }],
+						api: model.api,
+						provider: model.provider,
+						model: model.id,
+						usage: zeroUsage,
+						stopReason: first ? "toolUse" : "stop",
+						timestamp: Date.now(),
+					};
+					const stream = new AssistantMessageEventStream();
+					queueMicrotask(() => {
+						stream.push({ type: "start", partial: message });
+						stream.push({ type: "done", reason: first ? "toolUse" : "stop", message });
+					});
+					return stream;
+				},
+			});
+			const settings = Settings.isolated({ "compaction.enabled": false, "todo.enabled": false });
+			settings.setModelRole("default", `${model.provider}/${model.id}`);
+			session = new AgentSession({
+				agent,
+				sessionManager: SessionManager.inMemory(tempDir.path()),
+				settings,
+				modelRegistry,
+				toolRegistry: new Map([[slowTool.name, slowTool]]),
+			});
+
+			const run = session.prompt("go");
+			await started.promise;
+			for (const id of ["a", "b"]) {
+				await session.sendCustomMessage(
+					{ customType: "xsec-guidance", content: `STEER_${id}`, display: false, details: { guidanceId: id } },
+					{ deliverAs },
+				);
+			}
+			if (deliverAs === "steer") expect(session.agent.peekSteeringQueue()).toHaveLength(2);
+
+			const sameId = (id: string) => (details: unknown) =>
+				(details as { guidanceId?: string } | undefined)?.guidanceId === id;
+			expect(session.withdrawQueuedCustomMessages("other-type", sameId("a"))).toBe(0);
+			expect(session.withdrawQueuedCustomMessages("xsec-guidance", sameId("a"))).toBe(1);
+			expect(session.withdrawQueuedCustomMessages("xsec-guidance", sameId("a"))).toBe(0);
+			if (deliverAs === "steer") expect(session.agent.peekSteeringQueue()).toHaveLength(1);
+
+			release.resolve();
+			await run;
+			await session.waitForIdle();
+
+			const seen = JSON.stringify(contexts.flatMap(context => context.messages));
+			expect(seen).toContain("STEER_b");
+			expect(seen).not.toContain("STEER_a");
+			// Once the loop has taken it, withdrawing answers 0: it counts as delivered.
+			expect(session.withdrawQueuedCustomMessages("xsec-guidance", sameId("b"))).toBe(0);
 		});
-		const settings = Settings.isolated({ "compaction.enabled": false, "todo.enabled": false });
-		settings.setModelRole("default", `${model.provider}/${model.id}`);
-		session = new AgentSession({
-			agent,
-			sessionManager: SessionManager.inMemory(tempDir.path()),
-			settings,
-			modelRegistry,
-			toolRegistry: new Map([[slowTool.name, slowTool]]),
-		});
-
-		const run = session.prompt("go");
-		await started.promise;
-		for (const id of ["a", "b"]) {
-			await session.sendCustomMessage(
-				{ customType: "xsec-guidance", content: `STEER_${id}`, display: false, details: { guidanceId: id } },
-				{ deliverAs: "steer" },
-			);
-		}
-		expect(session.agent.peekSteeringQueue()).toHaveLength(2);
-
-		const sameId = (id: string) => (details: unknown) =>
-			(details as { guidanceId?: string } | undefined)?.guidanceId === id;
-		expect(session.withdrawQueuedCustomMessages("other-type", sameId("a"))).toBe(0);
-		expect(session.withdrawQueuedCustomMessages("xsec-guidance", sameId("a"))).toBe(1);
-		expect(session.withdrawQueuedCustomMessages("xsec-guidance", sameId("a"))).toBe(0);
-		expect(session.agent.peekSteeringQueue()).toHaveLength(1);
-
-		release.resolve();
-		await run;
-		await session.waitForIdle();
-
-		const seen = JSON.stringify(contexts.flatMap(context => context.messages));
-		expect(seen).toContain("STEER_b");
-		expect(seen).not.toContain("STEER_a");
-		// Once the loop has taken it, withdrawing answers 0: it counts as delivered.
-		expect(session.withdrawQueuedCustomMessages("xsec-guidance", sameId("b"))).toBe(0);
-	});
+	}
 });

@@ -263,6 +263,8 @@ export class ExtensionUiController {
 
 		const actions: ExtensionActions = {
 			sendMessage: this.#sendExtensionMessage,
+			withdrawQueuedMessages: (customType, match) =>
+				this.ctx.session.withdrawQueuedCustomMessages(customType, match),
 			sendUserMessage: this.#sendExtensionUserMessage,
 			appendEntry: (customType, data) => {
 				this.ctx.sessionManager.appendCustomEntry(customType, data);
@@ -488,6 +490,8 @@ export class ExtensionUiController {
 
 		const actions: ExtensionActions = {
 			sendMessage: this.#sendExtensionMessage,
+			withdrawQueuedMessages: (customType, match) =>
+				this.ctx.session.withdrawQueuedCustomMessages(customType, match),
 			sendUserMessage: this.#sendExtensionUserMessage,
 			appendEntry: (customType, data) => {
 				this.ctx.sessionManager.appendCustomEntry(customType, data);

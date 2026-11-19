@@ -75,6 +75,7 @@ export async function initializeExtensions(session: AgentSession, options: Initi
 	runner.initialize(
 		// ExtensionActions
 		{
+			withdrawQueuedMessages: (customType, match) => session.withdrawQueuedCustomMessages(customType, match),
 			sendMessage: (message, sendOptions) => {
 				const sendTask = session.sendCustomMessage(message, sendOptions);
 				trackExtensionSend?.(sendTask);

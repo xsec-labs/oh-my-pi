@@ -229,6 +229,7 @@ import { type AgentRef, AgentRegistry, type AgentRegistryApi } from "../registry
 import { cfgSecretsEnabled } from "../secrets/settings";
 import { credentialShapeRedaction } from "../xsec/secret-builtin-patterns";
 import { maskOutboundContext, maskOutboundText } from "../xsec/outbound-context";
+import { withdrawQueuedCustomMessages as withdrawQueued } from "../xsec/withdraw-queued";
 import { releaseSharpshooterSession } from "../sharpshooter/backend";
 import { flushSharpshooterExtraction } from "../sharpshooter/extract";
 import { toolReadsSkillUris } from "../system-prompt";
@@ -11347,25 +11348,10 @@ export class AgentSession implements SettingsScope, AgentViewSession {
 		this.#reconcileQueuedMessageDrain();
 	}
 
-	/**
-	 * Remove the still-queued custom messages of `customType` whose `details` satisfy `match` from the
-	 * steering and follow-up queues, and return how many were removed. An extension takes back what it
-	 * sent with `pi.sendMessage(..., { deliverAs: "steer" })` before the model reads it: a message the
-	 * agent loop already took out of the queue is no longer here and stays (0 is the answer, not an
-	 * error). Everything else queued stays.
-	 */
+	/** Takes back queued custom messages an extension sent (see src/xsec/withdraw-queued.ts). */
 	withdrawQueuedCustomMessages(customType: string, match: (details: unknown) => boolean): number {
-		const isTarget = (message: AgentMessage): boolean =>
-			message.role === "custom" && message.customType === customType && match(message.details);
-		const steering = this.agent.peekSteeringQueue();
-		const followUp = this.agent.peekFollowUpQueue();
-		const removed = steering.filter(isTarget).length + followUp.filter(isTarget).length;
-		if (removed === 0) return 0;
-		this.agent.replaceQueues(
-			steering.filter(message => !isTarget(message)),
-			followUp.filter(message => !isTarget(message)),
-		);
-		this.#reconcileQueuedMessageDrain();
+		const removed = withdrawQueued(this.agent, customType, match);
+		if (removed > 0) this.#reconcileQueuedMessageDrain();
 		return removed;
 	}
 

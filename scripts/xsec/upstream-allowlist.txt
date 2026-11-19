@@ -36,7 +36,8 @@ packages/coding-agent/test/agent-session-message-pipeline.test.ts 8 packages/cod
 packages/coding-agent/src/launch/broker.ts 10 packages/coding-agent/test/launch/broker-*.test.ts packages/coding-agent/test/launch/daemon-*.test.ts packages/coding-agent/test/launch/spawn-options.test.ts
 packages/coding-agent/src/launch/protocol.ts 3 packages/coding-agent/test/launch/protocol.test.ts
 packages/coding-agent/src/tools/browser/shared-daemon.ts 3 packages/coding-agent/test/tools/browser-launch.test.ts packages/coding-agent/test/tools/browser-shared-wedge.test.ts
-# pi.withdrawQueuedMessages lets an extension take back queued steer messages (src/xsec/withdraw-queued.ts): the API method, its runtime action and the hosts' one-line wiring.
+# pi.withdrawQueuedMessages lets an extension take back queued steer, follow-up and aside messages (src/xsec/withdraw-queued.ts): the API method, its runtime action, the hosts' one-line wiring and the aside queue's withdraw method.
+packages/coding-agent/src/session/irc-bridge.ts 8 packages/coding-agent/test/agent-session-aside-delivery.test.ts
 packages/coding-agent/src/extensibility/extensions/loader.ts 8 packages/coding-agent/test/extensions-runner.test.ts
 packages/coding-agent/src/extensibility/extensions/runner.ts 1 packages/coding-agent/test/extensions-runner.test.ts
 packages/coding-agent/src/extensibility/extensions/types.ts 5 packages/coding-agent/test/extensions-runner.test.ts

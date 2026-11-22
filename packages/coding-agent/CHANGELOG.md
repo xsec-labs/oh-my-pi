@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Added
+
+- Added `omp session pack --restore-secrets [--config <file>]`, which turns secret placeholders in model-written text (assistant text, thinking, tool-call arguments, summaries, and subagent transcripts) back into the values in the packed copy only, so a session moved to another machine reads in plain text there. The last stdout line reports `{"secrets":{"restored":N,"unrestored":M}}`; placeholders this profile cannot resolve are left as they are and counted.
+
 ## [18.20.2] - 2026-11-14
 
 ### Added

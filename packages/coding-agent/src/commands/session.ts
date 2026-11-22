@@ -14,6 +14,7 @@ import { Args, CliUsageError, Command, Flags } from "@oh-my-pi/pi-utils/cli";
 import { sessionHelp as commandHelp } from "../cli/command-help";
 import { resolveSessionFileArg } from "../cli/session-arg";
 import { SessionMoveRefusedError } from "../session/session-manager";
+import { buildPackObfuscator } from "../session/session-pack-secrets";
 import { probeSessionLeases } from "../session/session-storage";
 import {
 	markSessionMoved,
@@ -27,7 +28,7 @@ const ACTIONS = ["pack", "unpack", "moved", "lease"] as const;
 type SessionAction = (typeof ACTIONS)[number];
 
 const USAGE: Record<SessionAction, string> = {
-	pack: "omp session pack <session> <out.tar>",
+	pack: "omp session pack <session> <out.tar> [--restore-secrets [--config <file>]]",
 	unpack: "omp session unpack <archive.tar> --cwd <dir>",
 	moved: "omp session moved <session> --to <label>",
 	lease: "omp session lease [--json] -- <session-id>...",
@@ -81,6 +82,14 @@ export default class Session extends Command {
 		cwd: Flags.string({ description: "Directory the session continues in on this machine (unpack)" }),
 		to: Flags.string({ description: "Where the session went, e.g. a machine name (moved)" }),
 		json: Flags.boolean({ description: "Print {held, unknown} session id lists as JSON (lease)" }),
+		"restore-secrets": Flags.boolean({
+			description: "Turn secret placeholders in model-written text back into the values in the packed copy (pack)",
+		}),
+		config: Flags.string({
+			description:
+				"Config overlay the session was started with; carries the secrets policies (pack --restore-secrets)",
+			multiple: true,
+		}),
 	};
 
 	static examples = [
@@ -110,6 +119,12 @@ export default class Session extends Command {
 		}
 		const source = args.source;
 		if (!source) throw new CliUsageError(`Missing ${action === "unpack" ? "archive" : "session"}. Usage: ${usage}`);
+		if (action !== "pack" && (flags["restore-secrets"] === true || flags.config !== undefined)) {
+			throw new CliUsageError(`--restore-secrets and --config only apply to pack. Usage: ${usage}`);
+		}
+		if (action === "pack" && flags.config !== undefined && flags["restore-secrets"] !== true) {
+			throw new CliUsageError(`--config only applies with --restore-secrets. Usage: ${usage}`);
+		}
 		if (action !== "unpack" && flags.cwd !== undefined) {
 			throw new CliUsageError(`--cwd only applies to unpack. Usage: ${usage}`);
 		}
@@ -121,13 +136,20 @@ export default class Session extends Command {
 			switch (action) {
 				case "pack": {
 					if (!args.output) throw new CliUsageError(`Missing output archive path. Usage: ${usage}`);
-					const result = await packSession(await this.#resolveSession(source), args.output);
+					const sessionFile = await this.#resolveSession(source);
+					const restoreSecrets =
+						flags["restore-secrets"] === true
+							? { obfuscator: await buildPackObfuscator(sessionFile, flags.config) }
+							: undefined;
+					const result = await packSession(sessionFile, args.output, { restoreSecrets });
 					if (result.missingBlobs.length > 0) {
 						process.stderr.write(
 							`${chalk.yellow(`warning: ${result.missingBlobs.length} referenced blob(s) are missing from the local blob store and were not packed; those images will not load after unpacking.`)}\n`,
 						);
 					}
 					process.stdout.write(`${result.archivePath}\n`);
+					// With --restore-secrets the last stdout line is {"secrets":{"restored":N,"unrestored":M}}.
+					if (result.secrets) process.stdout.write(`${JSON.stringify({ secrets: result.secrets })}\n`);
 					return;
 				}
 				case "unpack": {

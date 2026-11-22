@@ -2,12 +2,14 @@ import { toolWireSchema } from "@oh-my-pi/pi-ai/utils/schema";
 import { RequestError } from "@oh-my-pi/pi-utils/acp";
 import type { AgentSession } from "../session/agent-session";
 import { type GoalControlRequest, controlGoal, isGoalControlAction, readGoal } from "./goal";
+import { buildContextComposition, COMPOSITION_SCHEMA_VERSION } from "./usage-composition";
 
 export * from "./acp-continue";
 
 const SESSION_CAPABILITIES_METHOD = "_xsec/session/capabilities";
 const SESSION_GOAL_GET_METHOD = "_xsec/session/goal/get";
 const SESSION_GOAL_CONTROL_METHOD = "_xsec/session/goal/control";
+const CONTEXT_SNAPSHOT_METHOD = "_xsec/context/snapshot";
 
 /** Resolves an ACP session id to its live session. Throws ACP's not-found error for an unknown id. */
 type SessionLookup = (sessionId: string) => AgentSession;
@@ -36,6 +38,8 @@ export async function handleXsecExtMethod(
 			return await sessionGoalGet(params, lookupSession);
 		case SESSION_GOAL_CONTROL_METHOD:
 			return await sessionGoalControl(params, lookupSession);
+		case CONTEXT_SNAPSHOT_METHOD:
+			return contextSnapshot(params, lookupSession);
 		default:
 			throw RequestError.methodNotFound(method);
 	}
@@ -110,4 +114,22 @@ function goalControlRequest(params: ExtObject): GoalControlRequest {
 	}
 	if (text) throw RequestError.invalidParams({ method }, `${action} does not accept an objective`);
 	return { action };
+}
+
+/**
+ * `{ schemaVersion, model, contextWindow, usedTokens, composition }`: how the context the session would send
+ * next splits by part. Names and numbers only, no text. `usedTokens` is the provider-anchored count when the
+ * session has one; `composition.estimatedTokens` is the tokenizer's estimate of the same context.
+ */
+function contextSnapshot(params: ExtObject, lookupSession: SessionLookup): ExtObject {
+	const session = lookupSession(sessionIdParam(CONTEXT_SNAPSHOT_METHOD, params));
+	const usage = session.getContextUsage();
+	const model = session.model;
+	return {
+		schemaVersion: COMPOSITION_SCHEMA_VERSION,
+		model: model ? { provider: model.provider, id: model.id } : null,
+		contextWindow: usage?.contextWindow ?? model?.contextWindow ?? null,
+		usedTokens: usage?.tokens ?? null,
+		composition: buildContextComposition(session),
+	};
 }

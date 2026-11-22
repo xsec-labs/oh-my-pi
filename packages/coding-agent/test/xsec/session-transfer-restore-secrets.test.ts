@@ -4,13 +4,13 @@ import * as fsp from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
 import { SecretObfuscator } from "@oh-my-pi/pi-coding-agent/secrets";
-import { buildPackObfuscator } from "@oh-my-pi/pi-coding-agent/session/session-pack-secrets";
+import { buildPackObfuscator } from "@oh-my-pi/pi-coding-agent/xsec/session-pack-secrets";
 import { closeSessionIndex } from "@oh-my-pi/pi-coding-agent/session/session-index";
 import { SessionManager } from "@oh-my-pi/pi-coding-agent/session/session-manager";
 import { packSession } from "@oh-my-pi/pi-coding-agent/session/session-transfer";
 import { getConfigRootDir, setAgentDir } from "@oh-my-pi/pi-utils";
 import { readArchiveEntries } from "@oh-my-pi/pi-utils/ar";
-import { makeAssistantMessage } from "./session-manager/helpers";
+import { makeAssistantMessage } from "../session-manager/helpers";
 
 const SECRET = "hunter2hunter2";
 

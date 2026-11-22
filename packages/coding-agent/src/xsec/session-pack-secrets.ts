@@ -6,7 +6,7 @@
 import { getAgentDir } from "@oh-my-pi/pi-utils";
 import { Settings } from "../config/settings";
 import { buildSecretObfuscator, type SecretObfuscator } from "../secrets";
-import { loadEntriesFromFile } from "./session-loader";
+import { loadEntriesFromFile } from "../session/session-loader";
 
 /**
  * Builds the obfuscator for `sessionFile`. `configFiles` are the `--config` overlays the session was started

@@ -42,7 +42,7 @@ import type { FileEntry, SessionEntry, SessionHeader } from "./session-entries";
 import type { SecretObfuscator } from "../secrets/obfuscator";
 import { findSessionFiles } from "./session-listing";
 import { loadEntriesFromFile, parseSessionContent, readSessionHeaderId } from "./session-loader";
-import { type RestoreSecretsReport, restoreJournalSecrets } from "./session-restore-secrets";
+import { type RestoreSecretsReport, restoreJournalSecrets } from "../xsec/session-restore-secrets";
 import { SessionManager } from "./session-manager";
 import { FileSessionStorage } from "./session-storage";
 

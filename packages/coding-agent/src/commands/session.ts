@@ -14,7 +14,7 @@ import { Args, CliUsageError, Command, Flags } from "@oh-my-pi/pi-utils/cli";
 import { sessionHelp as commandHelp } from "../cli/command-help";
 import { resolveSessionFileArg } from "../cli/session-arg";
 import { SessionMoveRefusedError } from "../session/session-manager";
-import { buildPackObfuscator } from "../session/session-pack-secrets";
+import { buildPackObfuscator } from "../xsec/session-pack-secrets";
 import { probeSessionLeases } from "../session/session-storage";
 import {
 	markSessionMoved,

@@ -44,3 +44,6 @@ packages/coding-agent/src/extensibility/extensions/runner.ts 1 packages/coding-a
 packages/coding-agent/src/extensibility/extensions/types.ts 5 packages/coding-agent/test/extensions-runner.test.ts
 packages/coding-agent/src/modes/controllers/extension-ui-controller.ts 4 packages/coding-agent/test/extensions-runner.test.ts
 packages/coding-agent/src/modes/runtime-init.ts 1 packages/coding-agent/test/extensions-runner.test.ts
+# session.ts and session-transfer.ts call src/xsec/session-restore-secrets.ts and session-pack-secrets.ts for `omp session pack --restore-secrets`: an import, the option and its validation, the call and the report line.
+packages/coding-agent/src/commands/session.ts 28 packages/coding-agent/test/session-transfer-*.test.ts
+packages/coding-agent/src/session/session-transfer.ts 45 packages/coding-agent/test/session-transfer-*.test.ts

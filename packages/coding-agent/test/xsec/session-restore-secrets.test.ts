@@ -1,6 +1,6 @@
 import { describe, expect, it } from "bun:test";
 import { SecretObfuscator } from "@oh-my-pi/pi-coding-agent/secrets/obfuscator";
-import { restoreJournalSecrets } from "@oh-my-pi/pi-coding-agent/session/session-restore-secrets";
+import { restoreJournalSecrets } from "@oh-my-pi/pi-coding-agent/xsec/session-restore-secrets";
 
 const SECRET = "hunter2hunter2";
 const TOKEN = "tok_abcd1234efgh";

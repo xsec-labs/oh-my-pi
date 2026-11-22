@@ -39,8 +39,10 @@ import transferStaleForkTemplate from "../prompts/session/transfer-stale-fork.md
 import { replaceFileAtomically } from "../utils/atomic-file";
 import { BLOB_HASH_RE, BlobStore } from "./blob-store";
 import type { FileEntry, SessionEntry, SessionHeader } from "./session-entries";
+import type { SecretObfuscator } from "../secrets/obfuscator";
 import { findSessionFiles } from "./session-listing";
 import { loadEntriesFromFile, parseSessionContent, readSessionHeaderId } from "./session-loader";
+import { type RestoreSecretsReport, restoreJournalSecrets } from "../xsec/session-restore-secrets";
 import { SessionManager } from "./session-manager";
 import { FileSessionStorage } from "./session-storage";
 
@@ -89,6 +91,18 @@ export interface PackSessionResult {
 	id: string;
 	/** Blobs the transcripts reference that the local blob store no longer holds; the archive lacks them. */
 	missingBlobs: string[];
+	/** Set when `restoreSecrets` was given: what restoring placeholders in the packed copy found. */
+	secrets?: RestoreSecretsReport;
+}
+
+/** Options of {@link packSession}. */
+export interface PackSessionOptions {
+	/**
+	 * Restore secret placeholders in model-written text of the packed copy (the journal and subagent transcripts)
+	 * with this session's obfuscator (undefined when the session has none: placeholders are only counted). The
+	 * local files are not changed. Without this option the archive is byte for byte.
+	 */
+	restoreSecrets?: { obfuscator: SecretObfuscator | undefined };
 }
 
 /** Options for {@link unpackSession}. */
@@ -269,7 +283,11 @@ async function writeArchiveAtomically(
  * `outPath` (written atomically). Refuses a session another live omp process
  * is writing; the ownership lease is held while the files are read.
  */
-export async function packSession(sessionFile: string, outPath: string): Promise<PackSessionResult> {
+export async function packSession(
+	sessionFile: string,
+	outPath: string,
+	options: PackSessionOptions = {},
+): Promise<PackSessionResult> {
 	const source = path.resolve(sessionFile);
 	const archivePath = path.resolve(outPath);
 	const id = await requireSessionId(source);
@@ -295,9 +313,19 @@ export async function packSession(sessionFile: string, outPath: string): Promise
 			cwd: header.cwd,
 			omp: VERSION,
 		};
+		const restoring = options.restoreSecrets;
+		const secrets: RestoreSecretsReport = { restored: 0, unrestored: 0 };
+		const restore = (text: string): string | undefined => {
+			if (!restoring) return undefined;
+			const result = restoreJournalSecrets(text, restoring.obfuscator);
+			secrets.restored += result.report.restored;
+			secrets.unrestored += result.report.unrestored;
+			return result.text === text ? undefined : result.text;
+		};
+		const restoredJournal = restore(journalText);
 		const members: (readonly [string, ArchiveMemberContent])[] = [
 			[MANIFEST_MEMBER, `${JSON.stringify(manifest, null, 2)}\n`],
-			[SESSION_MEMBER, journal],
+			[SESSION_MEMBER, restoredJournal ?? journal],
 		];
 		const hashes = new Set<string>();
 		collectBlobHashes(journalText, hashes);
@@ -311,8 +339,13 @@ export async function packSession(sessionFile: string, outPath: string): Promise
 		if (realSource.endsWith(".jsonl")) {
 			for (const relative of await listFilesRecursive(artifactsDir)) {
 				const bytes = await fs.promises.readFile(path.join(artifactsDir, ...relative.split("/")));
-				members.push([`${ARTIFACTS_PREFIX}${relative}`, bytes]);
-				if (relative.endsWith(".jsonl")) collectBlobHashes(bytes.toString("utf8"), hashes);
+				let packed: ArchiveMemberContent = bytes;
+				if (relative.endsWith(".jsonl")) {
+					const text = bytes.toString("utf8");
+					collectBlobHashes(text, hashes);
+					packed = restore(text) ?? bytes; // subagent transcripts carry the same placeholders
+				}
+				members.push([`${ARTIFACTS_PREFIX}${relative}`, packed]);
 			}
 		}
 
@@ -328,7 +361,7 @@ export async function packSession(sessionFile: string, outPath: string): Promise
 		}
 
 		await writeArchiveAtomically(archivePath, members);
-		return { archivePath, id, missingBlobs };
+		return { archivePath, id, missingBlobs, ...(restoring ? { secrets } : {}) };
 	} finally {
 		release();
 	}

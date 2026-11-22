@@ -8,9 +8,14 @@ import { buildModel } from "@oh-my-pi/pi-catalog/build";
 import { Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
 import { AcpAgent } from "@oh-my-pi/pi-coding-agent/modes/acp/acp-agent";
 import { AgentSession } from "@oh-my-pi/pi-coding-agent/session/agent-session";
+import type { SystemPromptSource, SystemPromptSources } from "@oh-my-pi/pi-tui/status-line/context-usage";
 import { convertToLlm } from "@oh-my-pi/pi-coding-agent/session/messages";
 import { SessionManager } from "@oh-my-pi/pi-coding-agent/session/session-manager";
-import { buildContextComposition, type CompositionItem } from "@oh-my-pi/pi-coding-agent/xsec/usage-composition";
+import {
+	buildContextComposition,
+	buildRequestComposition,
+	type CompositionItem,
+} from "@oh-my-pi/pi-coding-agent/xsec/usage-composition";
 import { type AgentSideConnection, RequestError } from "@oh-my-pi/pi-utils/acp";
 
 const SNAPSHOT_METHOD = "_xsec/context/snapshot";
@@ -62,12 +67,19 @@ function assistant(content: AssistantMessage["content"]): AssistantMessage {
 	};
 }
 
-function createSession(messages: AgentMessage[] = []): AgentSession {
+function createSession(messages: AgentMessage[] = [], systemPromptSources?: SystemPromptSources): AgentSession {
 	const read = createTool("read");
 	const bash = createTool("bash");
+	// A device mounted under xd://: registered, but not one of the model's own tools.
+	const browserOpen = createTool("browser_open");
 	const agent = new Agent({
 		getApiKey: () => "test-key",
-		initialState: { model: TEST_MODEL, systemPrompt: ["You are a test agent."], tools: [read, bash], messages },
+		initialState: {
+			model: TEST_MODEL,
+			systemPrompt: [systemPromptSources?.blocks[0] ?? "You are a test agent."],
+			tools: [read, bash],
+			messages,
+		},
 		convertToLlm,
 	});
 	return new AgentSession({
@@ -78,9 +90,11 @@ function createSession(messages: AgentMessage[] = []): AgentSession {
 		toolRegistry: new Map<string, AgentTool>([
 			[read.name, read],
 			[bash.name, bash],
+			[browserOpen.name, browserOpen],
 		]),
 		builtInToolNames: ["read", "bash"],
 		rebuildSystemPrompt: async () => ({ systemPrompt: ["You are a test agent."] }),
+		systemPromptSources,
 	});
 }
 
@@ -167,6 +181,118 @@ describe("buildContextComposition", () => {
 		expect(JSON.stringify(composition)).not.toContain("opened");
 	});
 
+	// The model writes tool names and xd:// paths; only names the session registered may be reported.
+	it("reports an unregistered tool name or xd:// path as unknown, whatever the model wrote", () => {
+		const long = `xd://${"A".repeat(3000)}`;
+		const before: AgentMessage[] = [
+			{ role: "user", content: "go", timestamp: 1 },
+			assistant([
+				{ type: "toolCall", id: "h1", name: `my-password-is-${SECRET}`, arguments: {} },
+				{
+					type: "toolCall",
+					id: "h2",
+					name: "write",
+					arguments: { path: `xd://${SECRET} and more text?x=1`, content: "{}" },
+				},
+				{ type: "toolCall", id: "h3", name: "read", arguments: { path: long } },
+				{ type: "toolCall", id: "h4", name: "write", arguments: { path: "xd://browser_open", content: "{}" } },
+			]),
+			{
+				role: "toolResult",
+				toolCallId: "h1",
+				toolName: `my-password-is-${SECRET}`,
+				content: [{ type: "text", text: "no such tool" }],
+				isError: true,
+				timestamp: 2,
+			},
+			{
+				role: "toolResult",
+				toolCallId: "orphan",
+				toolName: `another-${SECRET}`,
+				content: [{ type: "text", text: "x" }],
+				isError: true,
+				timestamp: 3,
+			},
+		];
+
+		const { items } = buildContextComposition(createSession(before));
+
+		expect(JSON.stringify(items)).not.toContain("SECRET");
+		expect(JSON.stringify(items)).not.toContain("AAAA");
+		expect(item(items, "tool_calls", "unknown")).toMatchObject({ count: 2 });
+		expect(items.find(candidate => candidate.name === "unknown" && candidate.variant === "docs")).toBeDefined();
+		expect(item(items, "tool_results", "unknown")).toMatchObject({ count: 2 });
+		// A device the session did mount keeps its name.
+		expect(item(items, "tool_calls", "browser_open")).toMatchObject({ count: 1 });
+		for (const candidate of items) expect(candidate.name.length).toBeLessThanOrEqual(100);
+	});
+
+	// Instruction files and skills come out of the system prompt blocks they were built into.
+	it("splits instruction files and skills out of the system prompt", () => {
+		const block = "BASE PROMPT\n<<AGENTS.md body>>\n<<skill body of web-search>>\nTAIL";
+		const agentsStart = block.indexOf("<<AGENTS.md");
+		const agentsEnd = block.indexOf("\n", agentsStart);
+		const skillStart = block.indexOf("<<skill");
+		const skillEnd = block.indexOf("\n", skillStart);
+		const sources: SystemPromptSource[] = [
+			{
+				id: "a",
+				kind: "instruction-files",
+				label: "AGENTS.md",
+				path: "/repo/AGENTS.md",
+				block: 0,
+				start: agentsStart,
+				end: agentsEnd,
+			},
+			{ id: "s", kind: "skills", label: "web-search", block: 0, start: skillStart, end: skillEnd },
+		];
+
+		const { items } = buildContextComposition(createSession([], { blocks: [block], sources }));
+
+		expect(item(items, "instruction_files", "/repo/AGENTS.md")?.tokens).toBeGreaterThan(0);
+		expect(item(items, "skills", "web-search")?.tokens).toBeGreaterThan(0);
+		expect(item(items, "system_prompt", "block-0")?.tokens).toBeGreaterThan(0);
+		// The claimed parts leave the block: the three together weigh what the whole block does.
+		const whole = buildContextComposition(createSession([], { blocks: [block], sources: [] })).items;
+		const total = (list: CompositionItem[]) =>
+			list
+				.filter(candidate => candidate.category !== "tool_definitions")
+				.reduce((sum, candidate) => sum + candidate.tokens, 0);
+		expect(total(items)).toBeGreaterThanOrEqual(total(whole) - 2);
+	});
+
+	it("counts compaction summaries and bash executions apart from messages", () => {
+		const before = [
+			{ role: "compactionSummary", summary: "earlier work", tokensBefore: 1000, timestamp: 1 },
+			{ role: "bashExecution", command: "ls", output: "files", cancelled: false, truncated: false, timestamp: 2 },
+			{ role: "user", content: "go on", timestamp: 3 },
+		] as unknown as AgentMessage[];
+
+		const { items } = buildContextComposition(createSession(before));
+
+		expect(item(items, "compaction_summary", "compactionSummary")?.tokens).toBeGreaterThan(0);
+		expect(item(items, "tool_results", "bash")).toMatchObject({ count: 1 });
+		expect(item(items, "user_messages", "user")).toMatchObject({ count: 1 });
+	});
+
+	// An assistant message's weight beyond its text and calls is its thinking (and signatures).
+	it("counts what an assistant message weighs beyond its blocks as thinking", () => {
+		const reply = assistant([
+			{
+				type: "thinking",
+				thinking: "let me think about the SECRET plan at length ".repeat(20),
+				thinkingSignature: "sig",
+			},
+			{ type: "text", text: "ok" },
+		]);
+
+		const { items } = buildContextComposition(createSession([{ role: "user", content: "go", timestamp: 1 }, reply]));
+
+		expect(item(items, "assistant_thinking", "assistant")?.tokens).toBeGreaterThan(0);
+		expect(item(items, "assistant_messages", "assistant")?.tokens).toBeGreaterThan(0);
+		expect(JSON.stringify(items)).not.toContain("SECRET");
+	});
+
 	// A request's context stops before the reply it produced.
 	it("leaves out the reply and everything after it when measuring a request", () => {
 		const { before, reply } = conversation();
@@ -180,6 +306,37 @@ describe("buildContextComposition", () => {
 		expect(now.estimatedTokens).toBeGreaterThan(request.estimatedTokens);
 	});
 
+	// What a request's context gained is counted from the previous reply; when this process never saw one (a session
+	// resumed from disk, or its history compacted), from the last earlier reply in the history.
+	it("counts only the messages after the previous reply as added, with or without that reply in memory", () => {
+		const first = assistant([{ type: "toolCall", id: "c1", name: "read", arguments: { value: "a" } }]);
+		const history: AgentMessage[] = [
+			{ role: "user", content: "old question", timestamp: 1 },
+			first,
+			{
+				role: "toolResult",
+				toolCallId: "c1",
+				toolName: "read",
+				content: [{ type: "text", text: "result" }],
+				isError: false,
+				timestamp: 2,
+			},
+		];
+		const reply = assistant([{ type: "text", text: "answer" }]);
+		const session = createSession([...history, reply]);
+
+		const known = buildRequestComposition(session, reply, first);
+		const resumed = buildRequestComposition(session, reply, undefined);
+		const compacted = buildRequestComposition(session, reply, assistant([{ type: "text", text: "gone" }]));
+
+		for (const request of [known, resumed, compacted]) {
+			expect(item(request.added, "tool_results", "read")).toMatchObject({ count: 1 });
+			expect(item(request.added, "user_messages", "user")).toBeUndefined();
+			expect(item(request.reply, "assistant_messages", "assistant")?.tokens).toBeGreaterThan(0);
+			expect(item(request.composition.items, "user_messages", "user")).toBeDefined();
+		}
+	});
+
 	it("sums the items into the estimate", () => {
 		const { before } = conversation();
 		const { items, estimatedTokens } = buildContextComposition(createSession(before));
@@ -187,33 +344,34 @@ describe("buildContextComposition", () => {
 		expect(estimatedTokens).toBe(items.reduce((sum, candidate) => sum + candidate.tokens, 0));
 	});
 
-	// Long sessions pay for every request, so the counting has to stay cheap once the history has been counted.
-	it("counts a long history again in a few milliseconds", () => {
+	// Every request pays for this, so a settled message and the fixed parts are counted once, not on every request.
+	it("tokenizes nothing again when the history has not changed", () => {
 		const messages: AgentMessage[] = [];
-		for (let index = 0; index < 400; index++) {
-			messages.push({ role: "user", content: `turn ${index} ${"x".repeat(200)}`, timestamp: index });
+		for (let index = 0; index < 50; index++) {
+			messages.push({ role: "user", content: `turn ${index}`, timestamp: index });
 			messages.push(
-				assistant([{ type: "toolCall", id: `k${index}`, name: "read", arguments: { value: `v${index}` } }]),
+				assistant([
+					{ type: "text", text: `reply ${index}` },
+					{ type: "toolCall", id: `k${index}`, name: "read", arguments: { value: `v${index}` } },
+				]),
 			);
 			messages.push({
 				role: "toolResult",
 				toolCallId: `k${index}`,
 				toolName: "read",
-				content: [{ type: "text", text: "result ".repeat(100) }],
+				content: [{ type: "text", text: "result" }],
 				isError: false,
 				timestamp: index,
 			});
 		}
 		const session = createSession(messages);
-		buildContextComposition(session);
+		const first = buildContextComposition(session);
+		const countTokens = vi.spyOn(session.agent.tokenizer, "countTokens");
 
-		const started = performance.now();
-		buildContextComposition(session);
-		const elapsed = performance.now() - started;
+		const second = buildContextComposition(session);
 
-		// Not an assertion on time (tests never pass or fail on the clock): the count is reported for the PR.
-		console.log(`composition of ${messages.length} messages, second pass: ${elapsed.toFixed(2)} ms`);
-		expect(buildContextComposition(session).items.length).toBeGreaterThan(0);
+		expect(countTokens).not.toHaveBeenCalled();
+		expect(second).toEqual(first);
 	});
 });
 

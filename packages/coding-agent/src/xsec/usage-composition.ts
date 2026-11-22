@@ -9,6 +9,7 @@
  * (the context one provider request carried, measured at its `message_end`).
  */
 import type { AgentMessage, Tokenizer } from "@oh-my-pi/pi-agent-core";
+import { isEstimateCacheable, messageEstimateVersion } from "@oh-my-pi/pi-agent-core/compaction/message-cache";
 import type { AssistantMessage, ToolCall } from "@oh-my-pi/pi-ai";
 import {
 	claimPromptSources,
@@ -69,26 +70,49 @@ interface ResolvedTool {
 	variant?: "docs";
 }
 
+/** What a tool name is reported as when it is not one the session registered. */
+export const UNKNOWN_NAME = "unknown";
+/** No name is longer than this: the cap keeps a registered-but-odd name from growing a host's tables. */
+const MAX_NAME_LENGTH = 100;
+
+/**
+ * Only names the session itself registered leave this module. A tool call's name, an `xd://` path and a result's
+ * `toolName` are written by the model (or echo what it wrote), so an unregistered one, which may hold anything the
+ * model chose to say, is reported as {@link UNKNOWN_NAME}.
+ */
+function reportableName(name: string, known: ReadonlySet<string>): string {
+	return known.has(name) ? name.slice(0, MAX_NAME_LENGTH) : UNKNOWN_NAME;
+}
+
+/** The tool names the session registered: enabled ones, `xd://` mounted devices and MCP tools included. */
+function registeredToolNames(session: AgentSession): ReadonlySet<string> {
+	const names = new Set<string>();
+	for (const tool of session.agent.state.tools) names.add(tool.name);
+	for (const info of session.getAllToolInfos()) names.add(info.name);
+	return names;
+}
+
 /** The tool a `write`/`read` of an `xd://` device really addresses, so plugin tools count under their own names. */
-function resolveToolCall(call: ToolCall): ResolvedTool {
+function resolveToolCall(call: ToolCall, known: ReadonlySet<string>): ResolvedTool {
 	const args = call.arguments as Record<string, unknown> | undefined;
 	const path = typeof args?.path === "string" ? args.path : undefined;
-	if (path === undefined || path.slice(0, XD_SCHEME.length).toLowerCase() !== XD_SCHEME) return { name: call.name };
+	if (path === undefined || path.slice(0, XD_SCHEME.length).toLowerCase() !== XD_SCHEME) {
+		return { name: reportableName(call.name, known) };
+	}
 	const target =
 		path
 			.slice(XD_SCHEME.length)
 			.split(/[?#]/, 1)[0]
 			?.replace(/^\/+|\/+$/g, "") ?? "";
-	if (!target) return { name: call.name };
-	if (call.name === "read") return { name: target, variant: "docs" };
+	if (!target) return { name: reportableName(call.name, known) };
+	const name = reportableName(target, known);
+	if (call.name === "read") return { name, variant: "docs" };
 	if (call.name === "write") {
 		// An empty content, "?" or "help" reads the tool's description rather than running it.
 		const content = typeof args?.content === "string" ? args.content.trim() : "";
-		return content === "" || content === "?" || content === "help"
-			? { name: target, variant: "docs" }
-			: { name: target };
+		return content === "" || content === "?" || content === "help" ? { name, variant: "docs" } : { name };
 	}
-	return { name: call.name };
+	return { name: reportableName(call.name, known) };
 }
 
 /** Accumulates items by (category, name, source, variant). */
@@ -102,6 +126,7 @@ class ItemBook {
 		extra?: Pick<CompositionItem, "source" | "variant">,
 	) {
 		if (!(tokens > 0) && category !== "tool_definitions") return;
+		name = name.slice(0, MAX_NAME_LENGTH);
 		const key = `${category}\0${name}\0${extra?.source ?? ""}\0${extra?.variant ?? ""}`;
 		let item = this.#byKey.get(key);
 		if (!item) {
@@ -223,65 +248,119 @@ function fixedPart(session: AgentSession): CompositionItem[] {
 	return items;
 }
 
-/** The size of an assistant reply's own blocks; what the blocks do not account for is replayed reasoning. */
-function addAssistantMessage(
-	book: ItemBook,
-	tokenizer: Tokenizer,
-	message: AssistantMessage,
-	tools: Map<string, ResolvedTool>,
-) {
+/** One contribution of a message to the split. */
+interface Line {
+	category: CompositionCategory;
+	name: string;
+	tokens: number;
+	variant?: "docs";
+}
+
+/** Token counts of an assistant message's blocks, kept with the message while its estimate stays valid. */
+interface AssistantCounts {
+	tokenizer: Tokenizer;
+	version: number;
+	/** Per block: its text or call, counted; thinking and other blocks count 0 here. */
+	blocks: number[];
+	/** What the message weighs beyond its text and calls: thinking, signatures and provider payloads. */
+	thinking: number;
+}
+
+const ASSISTANT_COUNTS = new WeakMap<AssistantMessage, AssistantCounts>();
+
+/**
+ * Tokenizing is the cost of a request's split, and an assistant message never changes once settled, so its
+ * counts are kept per message and tokenizer. A prune or shake bumps the message's estimate version, which
+ * drops them; an unsettled message is never kept.
+ */
+function assistantCounts(tokenizer: Tokenizer, message: AssistantMessage): AssistantCounts {
+	const cacheable = isEstimateCacheable(message);
+	const version = messageEstimateVersion(message);
+	const cached = cacheable ? ASSISTANT_COUNTS.get(message) : undefined;
+	if (cached && cached.tokenizer === tokenizer && cached.version === version) return cached;
 	let counted = 0;
-	for (const block of message.content) {
+	const blocks = message.content.map(block => {
+		let tokens = 0;
 		if (block.type === "text") {
-			const tokens = tokenizer.countTokens(block.text);
-			counted += tokens;
-			book.add("assistant_messages", "assistant", tokens);
+			tokens = tokenizer.countTokens(block.text);
 		} else if (block.type === "toolCall") {
-			let tokens: number;
 			try {
 				// Same serializer as Tokenizer.countMessage, so the reasoning residual stays exact.
 				tokens = tokenizer.countTokens([block.name, stringifyJson(block.arguments) ?? "null"]);
 			} catch {
 				tokens = tokenizer.countTokens(block.name);
 			}
-			counted += tokens;
-			const resolved = resolveToolCall(block);
-			tools.set(block.id, resolved);
-			book.add("tool_calls", resolved.name, tokens, resolved.variant ? { variant: resolved.variant } : undefined);
 		}
-	}
-	// Thinking text, signatures and provider payloads: whatever the message weighs beyond its text and calls.
-	const thinking = Math.max(0, tokenizer.countMessage(message) - counted);
-	book.add("assistant_thinking", "assistant", thinking);
+		counted += tokens;
+		return tokens;
+	});
+	const counts: AssistantCounts = {
+		tokenizer,
+		version,
+		blocks,
+		thinking: Math.max(0, tokenizer.countMessage(message) - counted),
+	};
+	if (cacheable) ASSISTANT_COUNTS.set(message, counts);
+	return counts;
 }
 
-function addMessage(book: ItemBook, tokenizer: Tokenizer, message: AgentMessage, tools: Map<string, ResolvedTool>) {
+function assistantLines(
+	tokenizer: Tokenizer,
+	message: AssistantMessage,
+	tools: Map<string, ResolvedTool>,
+	known: ReadonlySet<string>,
+): Line[] {
+	const counts = assistantCounts(tokenizer, message);
+	const lines: Line[] = [];
+	for (const [index, block] of message.content.entries()) {
+		const tokens = counts.blocks[index] ?? 0;
+		if (block.type === "text") {
+			lines.push({ category: "assistant_messages", name: "assistant", tokens });
+		} else if (block.type === "toolCall") {
+			const resolved = resolveToolCall(block, known);
+			tools.set(block.id, resolved);
+			lines.push({ category: "tool_calls", name: resolved.name, tokens, variant: resolved.variant });
+		}
+	}
+	lines.push({ category: "assistant_thinking", name: "assistant", tokens: counts.thinking });
+	return lines;
+}
+
+function messageLines(
+	tokenizer: Tokenizer,
+	message: AgentMessage,
+	tools: Map<string, ResolvedTool>,
+	known: ReadonlySet<string>,
+): Line[] {
 	switch (message.role) {
 		case "assistant":
-			addAssistantMessage(book, tokenizer, message, tools);
-			return;
+			return assistantLines(tokenizer, message, tools, known);
 		case "toolResult": {
-			const resolved = tools.get(message.toolCallId) ?? { name: message.toolName };
-			book.add(
-				"tool_results",
-				resolved.name,
-				tokenizer.countMessage(message),
-				resolved.variant ? { variant: resolved.variant } : undefined,
-			);
-			return;
+			const resolved = tools.get(message.toolCallId) ?? { name: reportableName(message.toolName, known) };
+			return [
+				{
+					category: "tool_results",
+					name: resolved.name,
+					tokens: tokenizer.countMessage(message),
+					variant: resolved.variant,
+				},
+			];
 		}
 		case "bashExecution":
-			book.add("tool_results", "bash", tokenizer.countMessage(message));
-			return;
+			return [{ category: "tool_results", name: "bash", tokens: tokenizer.countMessage(message) }];
 		case "pythonExecution":
-			book.add("tool_results", "python", tokenizer.countMessage(message));
-			return;
+			return [{ category: "tool_results", name: "python", tokens: tokenizer.countMessage(message) }];
 		case "compactionSummary":
 		case "branchSummary":
-			book.add("compaction_summary", message.role, tokenizer.countMessage(message));
-			return;
+			return [{ category: "compaction_summary", name: message.role, tokens: tokenizer.countMessage(message) }];
 		default:
-			book.add("user_messages", "user", tokenizer.countMessage(message));
+			return [{ category: "user_messages", name: "user", tokens: tokenizer.countMessage(message) }];
+	}
+}
+
+function addLines(book: ItemBook, lines: readonly Line[]) {
+	for (const line of lines) {
+		book.add(line.category, line.name, line.tokens, line.variant ? { variant: line.variant } : undefined);
 	}
 }
 
@@ -322,7 +401,7 @@ export function buildRequestComposition(
 	if (baseline < 0 || baseline >= end) baseline = messages.slice(0, end).findLastIndex(m => m.role === "assistant");
 	const scanned = scanContext(session, reply, baseline + 1);
 	const replyBook = new ItemBook();
-	addAssistantMessage(replyBook, session.agent.tokenizer, reply, new Map());
+	addLines(replyBook, assistantLines(session.agent.tokenizer, reply, new Map(), registeredToolNames(session)));
 	return { composition: scanned.composition, added: scanned.added, reply: replyBook.items() };
 }
 
@@ -343,10 +422,11 @@ function scanContext(
 	const messages = session.agent.state.messages;
 	const end = replyIndex(messages, before);
 	const tools = new Map<string, ResolvedTool>();
+	const known = registeredToolNames(session);
 	for (let index = 0; index < end; index++) {
-		const message = messages[index]!;
-		addMessage(book, tokenizer, message, tools);
-		if (addedFrom !== undefined && index >= addedFrom) addMessage(addedBook, tokenizer, message, tools);
+		const lines = messageLines(tokenizer, messages[index]!, tools, known);
+		addLines(book, lines);
+		if (addedFrom !== undefined && index >= addedFrom) addLines(addedBook, lines);
 	}
 	const items = book.items();
 	return {

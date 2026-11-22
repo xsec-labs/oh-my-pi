@@ -13,7 +13,12 @@ import type { AgentMessage } from "@oh-my-pi/pi-agent-core";
 import { $flag } from "@oh-my-pi/pi-utils/env";
 import * as logger from "@oh-my-pi/pi-utils/logger";
 import type { AgentSession } from "../session/agent-session";
-import { buildContextComposition, COMPOSITION_SCHEMA_VERSION, type ContextComposition } from "./usage-composition";
+import {
+	buildRequestComposition,
+	COMPOSITION_SCHEMA_VERSION,
+	type CompositionItem,
+	type ContextComposition,
+} from "./usage-composition";
 
 export const USAGE_REQUEST_METHOD = "_xsec/usage/request";
 
@@ -41,9 +46,15 @@ export type UsageRequestParams = {
 	contextWindow?: number;
 	/** The context this request carried, split by part. */
 	composition: ContextComposition;
+	/** What that context gained since the previous request: new tool results and messages. */
+	added: CompositionItem[];
+	/** The reply's own blocks, the output side: text, thinking and tool calls by tool. */
+	reply: CompositionItem[];
 };
 
 const sequences = new WeakMap<AgentSession, number>();
+/** The reply to each session's previous request, to tell what the next request's context gained. */
+const previousReplies = new WeakMap<AgentSession, AgentMessage>();
 
 /** Whether the host asked for per-request usage. */
 export function usageRequestsEnabled(): boolean {
@@ -69,6 +80,8 @@ export function usageRequestNotification(
 	try {
 		const seq = (sequences.get(session) ?? 0) + 1;
 		sequences.set(session, seq);
+		const split = buildRequestComposition(session, message, previousReplies.get(session));
+		previousReplies.set(session, message);
 		const params: UsageRequestParams = {
 			schemaVersion: COMPOSITION_SCHEMA_VERSION,
 			sessionId,
@@ -86,7 +99,9 @@ export function usageRequestNotification(
 				total: usage.totalTokens ?? input + output + cacheRead + cacheWrite,
 				...(usage.reasoningTokens !== undefined ? { reasoning: usage.reasoningTokens } : {}),
 			},
-			composition: buildContextComposition(session, message),
+			composition: split.composition,
+			added: split.added,
+			reply: split.reply,
 		};
 		const contextWindow = session.model?.contextWindow;
 		if (contextWindow) params.contextWindow = contextWindow;

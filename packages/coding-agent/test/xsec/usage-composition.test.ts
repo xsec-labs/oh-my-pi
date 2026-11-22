@@ -349,6 +349,15 @@ describe("_xsec/usage/request", () => {
 		expect(item(second, "tool_calls", "read")).toMatchObject({ count: 1 });
 		expect(item(second, "tool_results", "read")).toMatchObject({ count: 1 });
 		expect(item(second, "assistant_messages", "assistant")).toBeUndefined();
+		// `added` is what the context gained since the previous request, `reply` what came back.
+		const added = (requests[1]!.params.added as CompositionItem[]) ?? [];
+		expect(item(added, "tool_results", "read")).toMatchObject({ count: 1 });
+		expect(item(added, "user_messages", "user")).toBeUndefined();
+		expect(item((requests[0]!.params.added as CompositionItem[]) ?? [], "user_messages", "user")).toBeDefined();
+		const firstReply = (requests[0]!.params.reply as CompositionItem[]) ?? [];
+		expect(item(firstReply, "tool_calls", "read")).toMatchObject({ count: 1 });
+		const secondReply = (requests[1]!.params.reply as CompositionItem[]) ?? [];
+		expect(item(secondReply, "assistant_messages", "assistant")?.tokens).toBeGreaterThan(0);
 		// The privacy rule: neither the message nor the call's arguments leave the process.
 		expect(JSON.stringify(requests.map(request => request.params))).not.toContain("SECRET");
 	});

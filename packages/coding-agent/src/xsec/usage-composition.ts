@@ -290,14 +290,67 @@ function addMessage(book: ItemBook, tokenizer: Tokenizer, message: AgentMessage,
  * the messages that come before `before`, which is the assistant reply the request produced.
  */
 export function buildContextComposition(session: AgentSession, before?: AgentMessage): ContextComposition {
+	return scanContext(session, before, undefined).composition;
+}
+
+/** One provider request seen from outside: the context it carried, what that context gained, what came back. */
+export interface RequestComposition {
+	composition: ContextComposition;
+	/**
+	 * The messages new in this request's context: those after the reply to the previous request (tool results,
+	 * the user's message). A host sums these to learn how many results a tool produced and how big they were,
+	 * which the whole-context split cannot say because it repeats old results on every request.
+	 */
+	added: CompositionItem[];
+	/** The reply's own blocks: the output side of the request (text, thinking, tool calls by tool). */
+	reply: CompositionItem[];
+}
+
+/**
+ * The split of the context `reply`'s request carried. `previousReply` is the reply to the request before, when
+ * this process saw it; without it the messages after the last earlier reply count as new, which is right for a
+ * session resumed from disk and for one whose history was compacted.
+ */
+export function buildRequestComposition(
+	session: AgentSession,
+	reply: AssistantMessage,
+	previousReply: AgentMessage | undefined,
+): RequestComposition {
+	const messages = session.agent.state.messages;
+	const end = replyIndex(messages, reply);
+	let baseline = previousReply === undefined ? -1 : messages.lastIndexOf(previousReply);
+	if (baseline < 0 || baseline >= end) baseline = messages.slice(0, end).findLastIndex(m => m.role === "assistant");
+	const scanned = scanContext(session, reply, baseline + 1);
+	const replyBook = new ItemBook();
+	addAssistantMessage(replyBook, session.agent.tokenizer, reply, new Map());
+	return { composition: scanned.composition, added: scanned.added, reply: replyBook.items() };
+}
+
+function replyIndex(messages: readonly AgentMessage[], reply: AgentMessage | undefined): number {
+	const found = reply === undefined ? -1 : messages.lastIndexOf(reply);
+	return found < 0 ? messages.length : found;
+}
+
+function scanContext(
+	session: AgentSession,
+	before: AgentMessage | undefined,
+	addedFrom: number | undefined,
+): { composition: ContextComposition; added: CompositionItem[] } {
 	const tokenizer = session.agent.tokenizer;
 	const book = new ItemBook();
+	const addedBook = new ItemBook();
 	book.merge(fixedPart(session));
 	const messages = session.agent.state.messages;
-	const found = before === undefined ? -1 : messages.lastIndexOf(before);
-	const end = found < 0 ? messages.length : found;
+	const end = replyIndex(messages, before);
 	const tools = new Map<string, ResolvedTool>();
-	for (let index = 0; index < end; index++) addMessage(book, tokenizer, messages[index]!, tools);
+	for (let index = 0; index < end; index++) {
+		const message = messages[index]!;
+		addMessage(book, tokenizer, message, tools);
+		if (addedFrom !== undefined && index >= addedFrom) addMessage(addedBook, tokenizer, message, tools);
+	}
 	const items = book.items();
-	return { estimatedTokens: items.reduce((sum, item) => sum + item.tokens, 0), items };
+	return {
+		composition: { estimatedTokens: items.reduce((sum, item) => sum + item.tokens, 0), items },
+		added: addedBook.items(),
+	};
 }

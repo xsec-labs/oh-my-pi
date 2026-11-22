@@ -109,6 +109,7 @@ import { watchGeneratedTitle } from "../../xsec/acp-auto-title";
 import { buildFastConfigOption, FAST_CONFIG_ID, fastModeMeta, setFastModeOption } from "../../xsec/acp-fast-mode";
 import { restoreAcpSessionEvents, restoreAcpText, restoredSessionContext } from "../../xsec/acp-secret-stream";
 import { LateMcpReporter } from "../../xsec/mcp-late-status";
+import { usageRequestNotification, type USAGE_REQUEST_METHOD } from "../../xsec/usage-request";
 import { createAcpClientBridge } from "./acp-client-bridge";
 import {
 	extractAssistantMessageText,
@@ -380,7 +381,7 @@ function steeringQueueFromMeta(meta: unknown): "steering" | "followUp" {
 }
 
 type AcpCompactionNotification = {
-	method: "_omp/compaction/start" | "_omp/compaction/end";
+	method: "_omp/compaction/start" | "_omp/compaction/end" | typeof USAGE_REQUEST_METHOD;
 	params: Record<string, unknown>;
 };
 
@@ -2055,6 +2056,10 @@ export class AcpAgent implements Agent {
 					tokensBefore: event.result?.tokensBefore,
 				},
 			};
+		} else if (event.type === "message_end" && event.message.role === "assistant") {
+			const request = usageRequestNotification(sessionId, record.session, event.message);
+			if (!request) return;
+			notification = request;
 		} else {
 			if (
 				record.lifetimeUpdatesReady &&

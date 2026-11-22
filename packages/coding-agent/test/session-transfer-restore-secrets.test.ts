@@ -154,6 +154,8 @@ describe("omp session pack --restore-secrets", () => {
 	async function sessionFileWith(): Promise<string> {
 		const session = SessionManager.create(cwd);
 		session.appendMessage({ role: "user", content: "hi", timestamp: 1 });
+		// A session reaches disk only once it has an assistant message.
+		session.appendMessage(assistant([{ type: "text", text: "hello" }]));
 		await session.flush();
 		const file = session.getSessionFile();
 		if (!file) throw new Error("session has no file");

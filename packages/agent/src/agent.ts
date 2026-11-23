@@ -59,6 +59,7 @@ import type {
 	AgentTool,
 	AgentToolContext,
 	AgentTurnEndContext,
+	AgentTurnEndResult,
 	AsideBoundary,
 	AsideMessage,
 	PrepareQueuedMessages,
@@ -512,7 +513,11 @@ export class Agent {
 	#onAssistantMessageEvent?: (message: AssistantMessage, event: AssistantMessageEvent) => void;
 	#onHarmonyLeak?: (event: HarmonyAuditEvent) => void | Promise<void>;
 	#onBeforeYield?: () => Promise<void> | void;
-	#onTurnEnd?: (messages: AgentMessage[], signal?: AbortSignal, context?: AgentTurnEndContext) => Promise<void> | void;
+	#onTurnEnd?: (
+		messages: AgentMessage[],
+		signal?: AbortSignal,
+		context?: AgentTurnEndContext,
+	) => Promise<AgentTurnEndResult | void> | AgentTurnEndResult | void;
 	#onModelCallSystemPrompt?: (systemPrompt: string[]) => void;
 	#beforeModelCall?: AgentBeforeModelCall;
 	#additionalBeforeModelCalls = new Set<AgentBeforeModelCall>();
@@ -1240,7 +1245,11 @@ export class Agent {
 	}
 	setOnTurnEnd(
 		fn:
-			| ((messages: AgentMessage[], signal?: AbortSignal, context?: AgentTurnEndContext) => Promise<void> | void)
+			| ((
+					messages: AgentMessage[],
+					signal?: AbortSignal,
+					context?: AgentTurnEndContext,
+			  ) => Promise<AgentTurnEndResult | void> | AgentTurnEndResult | void)
 			| undefined,
 	): void {
 		this.#onTurnEnd = fn;

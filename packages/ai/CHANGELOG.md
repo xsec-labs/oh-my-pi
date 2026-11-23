@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Added
+
+- `ToolCallLoopGuard` detects repeating two- and three-turn tool-call cycles and identical prose across tool-calling turns, and can escalate to `level: "abort"` after a `hardLimit` of further repetitions.
+
 ## [18.20.2] - 2026-11-14
 
 ### Added

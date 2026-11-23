@@ -253,4 +253,59 @@ describe("AgentSession tool-call loop guard", () => {
 			),
 		).toHaveLength(redirects);
 	});
+
+	it("ends the run with an explanation after the redirect is ignored for hardLimit more turns", async () => {
+		const tool: AgentTool = {
+			name: "bash",
+			label: "Bash",
+			description: "Mock bash tool",
+			parameters: type({ "command?": "string" }),
+			execute: async () => ({ content: [{ type: "text", text: "same output" }] }),
+		};
+		const repeat = { content: [{ type: "toolCall" as const, name: "bash", arguments: { command: "ls" } }] };
+		const mock = createMockModel({
+			provider: "openai",
+			responses: [repeat, repeat, repeat, repeat, repeat, repeat, { content: ["never reached"] }],
+		});
+		const settings = Settings.isolated({
+			"compaction.enabled": false,
+			"todo.enabled": false,
+			"model.toolCallLoopGuard.enabled": true,
+			"model.toolCallLoopGuard.threshold": 2,
+			"model.toolCallLoopGuard.hardLimit": 2,
+			"model.toolCallLoopGuard.exemptTools": [],
+		});
+		settings.setModelRole("default", `${mock.provider}/${mock.id}`);
+		session = new AgentSession({
+			agent: new Agent({
+				getApiKey: () => "test-key",
+				initialState: { model: mock, systemPrompt: ["Test"], tools: [tool], messages: [] },
+				convertToLlm,
+				streamFn: mock.stream,
+			}),
+			sessionManager: SessionManager.inMemory(tempDir.path()),
+			settings,
+			modelRegistry: new ModelRegistry(authStorage),
+			toolRegistry: new Map([[tool.name, tool]]),
+		});
+		const events: string[] = [];
+		session.subscribe(event => {
+			if (event.type === "notice") events.push(event.message);
+		});
+
+		await session.prompt("keep listing");
+		await session.waitForIdle();
+
+		// threshold 2 + hardLimit 2: the fourth identical turn ends the run before a fifth model call.
+		expect(mock.calls).toHaveLength(4);
+		const messages = session.agent.state.messages;
+		const last = messages.at(-1);
+		expect(last?.role).toBe("assistant");
+		if (last?.role !== "assistant") throw new Error("unreachable");
+		expect(last.stopReason).toBe("stop");
+		expect(last.content.map(part => (part.type === "text" ? part.text : "")).join("")).toContain("重复");
+		expect(messages.filter(m => m.role === "custom" && m.customType === "tool-call-loop-redirect")).toHaveLength(2);
+		// The explanation is the reply itself: no separate tripped notice.
+		expect(events).toEqual([]);
+	});
 });

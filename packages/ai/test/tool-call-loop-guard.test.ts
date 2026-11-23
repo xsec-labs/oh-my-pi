@@ -50,6 +50,7 @@ describe("ToolCallLoopGuard", () => {
 			count: 5,
 			resultSummary: "1263 passed, 4 skipped",
 			argumentsSummary: '{"command":"pytest -q","timeout":120}',
+			level: "redirect",
 		});
 	});
 
@@ -405,6 +406,7 @@ describe("ToolCallLoopGuard multi-call turns", () => {
 			count: 2,
 			resultSummary: "command output",
 			argumentsSummary: '{"command":"echo a"}',
+			level: "redirect",
 		});
 	});
 
@@ -473,5 +475,91 @@ describe("ToolCallLoopGuard multi-call turns", () => {
 		expect(guard.recordTurn(turn(b()))).toBeNull();
 		expect(guard.recordTurn(turn(a()))).toBeNull();
 		expect(guard.recordTurn(turn(b()))).toBeNull();
+	});
+});
+
+describe("ToolCallLoopGuard escalation and extended patterns", () => {
+	let nextId = 0;
+	function call(name: string, args: Record<string, unknown>): ToolCall {
+		return { type: "toolCall", id: `c${nextId++}`, name, arguments: args };
+	}
+	function turn(calls: ToolCall[], text = "") {
+		const content: AssistantMessage["content"] = text ? [{ type: "text", text }, ...calls] : [...calls];
+		const message: AssistantMessage = {
+			role: "assistant",
+			content,
+			api: "openai-responses",
+			provider: "openai",
+			model: "test-model",
+			usage: zeroUsage,
+			stopReason: "toolUse",
+			timestamp: Date.now(),
+		};
+		return { message, toolResults: [] as ToolResultMessage[] };
+	}
+	const bash = (command: string) => call("bash", { command });
+
+	test("escalates to abort after hardLimit more repetitions past the threshold", () => {
+		const guard = new ToolCallLoopGuard({ threshold: 5, exemptTools: [], hardLimit: 3 });
+		const levels: Array<string | undefined> = [];
+		for (let i = 0; i < 8; i++) levels.push(guard.recordTurn(turn([bash("ls")]))?.level);
+		expect(levels).toEqual([undefined, undefined, undefined, undefined, "redirect", "redirect", "redirect", "abort"]);
+	});
+
+	test("never aborts when hardLimit is 0", () => {
+		const guard = new ToolCallLoopGuard({ threshold: 2, exemptTools: [], hardLimit: 0 });
+		let last = null;
+		for (let i = 0; i < 20; i++) last = guard.recordTurn(turn([bash("ls")]));
+		expect(last).toMatchObject({ level: "redirect", count: 20 });
+	});
+
+	test("detects an alternating A, B cycle", () => {
+		const guard = new ToolCallLoopGuard({ threshold: 5, exemptTools: [], hardLimit: 3 });
+		const results = [];
+		for (let i = 0; i < 6; i++) {
+			results.push(guard.recordTurn(turn([i % 2 === 0 ? bash("make") : call("read", { path: "log" })])));
+		}
+		expect(results.slice(0, 5).every(r => r === null)).toBe(true);
+		expect(results[5]).toMatchObject({
+			kind: "repeated_tool_cycle",
+			period: 2,
+			count: 3,
+			level: "redirect",
+			toolName: "bash → read",
+		});
+	});
+
+	test("detects a period-3 cycle and escalates it", () => {
+		const guard = new ToolCallLoopGuard({ threshold: 5, exemptTools: [], hardLimit: 3 });
+		const unit = ["a", "b", "c"];
+		let last = null;
+		for (let i = 0; i < 15; i++) last = guard.recordTurn(turn([bash(unit[i % 3]!)]));
+		expect(last).toMatchObject({ kind: "repeated_tool_cycle", period: 3, count: 5, level: "abort" });
+	});
+
+	test("does not flag varied turns as a cycle", () => {
+		const guard = new ToolCallLoopGuard({ threshold: 5, exemptTools: [], hardLimit: 3 });
+		for (let i = 0; i < 30; i++) expect(guard.recordTurn(turn([bash(`cmd-${i}`)]))).toBeNull();
+	});
+
+	test("detects identical prose across tool-calling turns even when the calls differ", () => {
+		const guard = new ToolCallLoopGuard({ threshold: 3, exemptTools: [], hardLimit: 2 });
+		const text = "Let me check the configuration file once more to make sure the values are exactly what we expect.";
+		const levels: Array<string | undefined> = [];
+		for (let i = 0; i < 5; i++) levels.push(guard.recordTurn(turn([bash(`cmd-${i}`)], text))?.level);
+		expect(levels).toEqual([undefined, undefined, "redirect", "redirect", "abort"]);
+	});
+
+	test("ignores short repeated prose", () => {
+		const guard = new ToolCallLoopGuard({ threshold: 2, exemptTools: [], hardLimit: 2 });
+		for (let i = 0; i < 6; i++) expect(guard.recordTurn(turn([bash(`cmd-${i}`)], "Checking."))).toBeNull();
+	});
+
+	test("a turn without tool calls clears cycle and text history", () => {
+		const guard = new ToolCallLoopGuard({ threshold: 4, exemptTools: [], hardLimit: 2 });
+		const text = "Let me check the configuration file once more to make sure the values are exactly what we expect.";
+		for (let i = 0; i < 3; i++) guard.recordTurn(turn([bash(`cmd-${i}`)], text));
+		expect(guard.recordTurn(turn([]))).toBeNull();
+		expect(guard.recordTurn(turn([bash("again")], text))).toBeNull();
 	});
 });

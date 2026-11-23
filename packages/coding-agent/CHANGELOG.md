@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+### Added
+
+- Added a hard stop to the tool-call loop guard: when the model ignores the corrective steer for `model.toolCallLoopGuard.hardLimit` more repetitions (default 3), the run ends normally with a closing message that explains what repeated.
+- Extended the tool-call loop guard to repeating A, B (or A, B, C) tool-call cycles and to identical assistant prose across tool-calling turns.
+
 ## [18.20.2] - 2026-11-14
 
 ### Added

@@ -58,7 +58,6 @@ import type {
 	AgentState,
 	AgentTool,
 	AgentToolContext,
-	AgentTurnEndContext,
 	AgentTurnEndHook,
 	AsideBoundary,
 	AsideMessage,

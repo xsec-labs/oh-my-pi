@@ -3,6 +3,7 @@ import {
 	type AgentEvent,
 	type AgentMessage,
 	type AgentTurnEndContext,
+	type AgentTurnEndStop,
 	createToolScopedAbortReason,
 } from "@oh-my-pi/pi-agent-core";
 import type { AssistantMessage, AssistantMessageEvent, Model } from "@oh-my-pi/pi-ai";
@@ -212,7 +213,7 @@ export class LoopGuards {
 	}
 
 	/** Records a completed turn and injects a redirect when calls repeat; `{ stop: true }` ends the run. */
-	recordTurn(messages: AgentMessage[], context: AgentTurnEndContext | undefined): { stop: true } | undefined {
+	recordTurn(messages: AgentMessage[], context: AgentTurnEndContext | undefined): AgentTurnEndStop | undefined {
 		if (context?.message.role !== "assistant") return undefined;
 		const detection = this.#activeToolCallLoopGuard()?.recordTurn({
 			message: context.message,

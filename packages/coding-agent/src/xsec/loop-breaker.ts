@@ -14,7 +14,7 @@
  *
  * Exempt tools, idle polls and turns without tool calls follow the upstream guard's rules.
  */
-import type { Agent, AgentMessage, AgentTurnEndContext } from "@oh-my-pi/pi-agent-core";
+import type { Agent, AgentMessage, AgentTurnEndContext, AgentTurnEndStop } from "@oh-my-pi/pi-agent-core";
 import type { AssistantMessage, ToolCall, ToolResultMessage } from "@oh-my-pi/pi-ai";
 import type { RepeatedToolCallDetection } from "@oh-my-pi/pi-ai/utils/tool-call-loop-guard";
 import { logger, prompt } from "@oh-my-pi/pi-utils";
@@ -64,6 +64,8 @@ interface Verdict {
 
 interface TurnRecord {
 	hash: string;
+	/** The turn's calls plus everything their results said: a poll whose output keeps changing differs here. */
+	outcomeKey: string;
 	toolName: string;
 	argumentsSummary: string;
 	resultSummary: string;
@@ -98,6 +100,12 @@ function resultText(toolResults: readonly ToolResultMessage[], toolCallId: strin
 	);
 }
 
+function outcomeText(toolResults: readonly ToolResultMessage[]): string {
+	return toolResults
+		.flatMap(result => result.content.filter(block => block.type === "text").map(block => block.text))
+		.join("\u0000");
+}
+
 /** Counts repetitions the upstream guard cannot see, and ends the run when a loop outlives its redirect. */
 export class LoopBreaker {
 	readonly #host: LoopBreakerHost;
@@ -124,7 +132,7 @@ export class LoopBreaker {
 		messages: AgentMessage[],
 		context: AgentTurnEndContext | undefined,
 		repeated: RepeatedToolCallDetection | null | undefined,
-	): { stop: true } | undefined {
+	): AgentTurnEndStop | undefined {
 		const settings = this.#host.settings;
 		if (context?.message.role !== "assistant") return undefined;
 		if (cfgModelToolCallLoopGuardEnabled.get(settings) !== true) {
@@ -137,8 +145,7 @@ export class LoopBreaker {
 		const verdict = this.#judge(context.message, context, threshold, hardLimit, repeated);
 		if (!verdict) return undefined;
 		if (verdict.abort) {
-			this.#endRun(context.message, verdict);
-			return { stop: true };
+			return { stop: true, message: this.#closingMessage(context.message, verdict) };
 		}
 		if (verdict.kind !== "repeated_tool_call") this.#injectRedirect(messages, verdict);
 		return undefined;
@@ -176,10 +183,12 @@ export class LoopBreaker {
 		}
 
 		const reportCall = toolCalls.find(call => !isExempt(call)) ?? toolCalls[0]!;
+		const hash = JSON.stringify(
+			toolCalls.map(call => JSON.stringify([call.name, canonicalize(call.arguments)])).sort(),
+		);
 		this.#history.push({
-			hash: JSON.stringify(
-				toolCalls.map(call => JSON.stringify([call.name, canonicalize(call.arguments)])).sort(),
-			),
+			hash,
+			outcomeKey: `${hash}\u0001${String(Bun.hash(outcomeText(toolResults)))}`,
 			toolName: reportCall.name,
 			argumentsSummary: summarize(JSON.stringify(canonicalize(reportCall.arguments))),
 			resultSummary: resultText(toolResults, reportCall.id),
@@ -188,8 +197,10 @@ export class LoopBreaker {
 		const text = this.#recordText(message);
 
 		if (repeated) {
-			// Identical calls: the upstream guard owns the redirect; this only decides the stop.
-			if (hardLimit > 0 && repeated.count >= threshold + hardLimit) {
+			// Identical calls: the upstream guard owns the redirect; this only decides the stop, and only when
+			// the results repeated too. A poll whose output keeps changing is making progress.
+			const stopCount = threshold + hardLimit;
+			if (hardLimit > 0 && repeated.count >= stopCount && this.#unchangedRun() >= stopCount) {
 				return {
 					kind: "repeated_tool_call",
 					toolName: repeated.toolName,
@@ -202,18 +213,42 @@ export class LoopBreaker {
 			return undefined;
 		}
 		const cycle = this.#detectCycle(threshold, hardLimit);
-		if (cycle) return cycle;
-		if (text && text >= threshold) {
-			return {
-				kind: "repeated_text",
-				toolName: "",
-				count: text,
-				argumentsSummary: summarize(this.#lastText ?? ""),
-				resultSummary: "",
-				abort: hardLimit > 0 && text >= threshold + hardLimit,
-			};
+		const textVerdict: Verdict | undefined =
+			text >= threshold
+				? {
+						kind: "repeated_text",
+						toolName: "",
+						count: text,
+						argumentsSummary: summarize(this.#lastText ?? ""),
+						resultSummary: "",
+						abort: hardLimit > 0 && text >= threshold + hardLimit,
+					}
+				: undefined;
+		// A stop wins over a redirect, whichever pattern asked for it.
+		if (cycle?.abort) return cycle;
+		if (textVerdict?.abort) return textVerdict;
+		return cycle ?? textVerdict;
+	}
+
+	/** Trailing turns whose calls and results are all the same as the latest turn's. */
+	#unchangedRun(): number {
+		const history = this.#history;
+		const last = history.at(-1);
+		if (!last) return 0;
+		let run = 0;
+		for (let i = history.length - 1; i >= 0 && history[i]!.outcomeKey === last.outcomeKey; i--) run++;
+		return run;
+	}
+
+	/** Full cycles of `period` turns at the tail of the history, compared by `key`. */
+	#cycles(period: number, key: (entry: TurnRecord) => string): number {
+		const history = this.#history;
+		let matched = 0;
+		for (let i = history.length - 1; i >= period; i--) {
+			if (key(history[i]!) !== key(history[i - period]!)) break;
+			matched++;
 		}
-		return undefined;
+		return Math.floor((matched + period) / period);
 	}
 
 	/** Consecutive tool-calling turns with identical prose (whitespace-normalized); 0 when this turn has none. */
@@ -244,16 +279,13 @@ export class LoopBreaker {
 		const cycleHardLimit = Math.ceil(hardLimit / 2);
 		const history = this.#history;
 		for (const period of CYCLE_PERIODS) {
-			let matched = 0;
-			for (let i = history.length - 1; i >= period; i--) {
-				if (history[i]!.hash !== history[i - period]!.hash) break;
-				matched++;
-			}
-			const cycles = Math.floor((matched + period) / period);
+			const cycles = this.#cycles(period, entry => entry.hash);
 			if (cycles < cycleThreshold) continue;
 			const unit = history.slice(history.length - period);
 			// One distinct turn repeated is the identical-call case, which the upstream guard counts.
 			if (new Set(unit.map(entry => entry.hash)).size < 2) continue;
+			// The stop also needs the results to cycle: alternating polls whose output changes are progress.
+			const unchanged = this.#cycles(period, entry => entry.outcomeKey);
 			return {
 				kind: "repeated_tool_cycle",
 				toolName: unit.map(entry => entry.toolName).join(" → "),
@@ -261,7 +293,7 @@ export class LoopBreaker {
 				argumentsSummary: unit.map(entry => entry.argumentsSummary).join(" | "),
 				resultSummary: unit.map(entry => entry.resultSummary).join(" | "),
 				period,
-				abort: hardLimit > 0 && cycles >= cycleThreshold + cycleHardLimit,
+				abort: hardLimit > 0 && unchanged >= cycleThreshold + cycleHardLimit,
 			};
 		}
 		return undefined;
@@ -295,8 +327,8 @@ export class LoopBreaker {
 		this.#host.sessionManager.appendCustomMessageEntry(LOOP_BREAKER_REDIRECT_TYPE, content, false, details, "agent");
 	}
 
-	/** Closes the run with an assistant message that carries the reason, so it is the reply the user reads. */
-	#endRun(last: AssistantMessage, verdict: Verdict): void {
+	/** The run's closing assistant message, which carries the reason: it is the reply the user reads. */
+	#closingMessage(last: AssistantMessage, verdict: Verdict): AssistantMessage {
 		logger.warn("repeated pattern outlived its redirect; ending the run", {
 			kind: verdict.kind,
 			toolName: verdict.toolName,
@@ -330,8 +362,7 @@ export class LoopBreaker {
 			stopReason: "stop",
 			timestamp: Date.now(),
 		};
-		this.#host.agent.emitExternalEvent({ type: "message_start", message: closing });
-		this.#host.agent.emitExternalEvent({ type: "message_end", message: closing });
+		return closing;
 	}
 }
 

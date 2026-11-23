@@ -95,6 +95,7 @@ import type {
 	AgentToolCall,
 	AgentToolResult,
 	AgentTurnEndContext,
+	AgentTurnEndStop,
 	AsideMessage,
 	BeforeToolCallResult,
 	CommittableAsideMessage,
@@ -804,12 +805,12 @@ async function emitTurnEnd(
 	signal?: AbortSignal,
 	context?: Omit<AgentTurnEndContext, "message" | "toolResults">,
 	runHookOnAbortedMessage = false,
-): Promise<boolean> {
+): Promise<AgentTurnEndStop | undefined> {
 	stream.push({ type: "turn_end", message, toolResults });
 	const terminalYield = signal?.reason === TERMINAL_TOOL_RESULT_ABORT_REASON;
 	const isAbortedOrError =
 		message.role === "assistant" && (message.stopReason === "aborted" || message.stopReason === "error");
-	if ((signal?.aborted && !terminalYield) || (isAbortedOrError && !runHookOnAbortedMessage)) return false;
+	if ((signal?.aborted && !terminalYield) || (isAbortedOrError && !runHookOnAbortedMessage)) return undefined;
 	const result = await config.onTurnEnd?.(currentContext.messages, terminalYield ? undefined : signal, {
 		message,
 		toolResults,
@@ -817,7 +818,7 @@ async function emitTurnEnd(
 		willContinue: false,
 		...context,
 	});
-	return result?.stop === true;
+	return result?.stop ? result : undefined;
 }
 
 function createGateStopMessage(model: Model, reason: string | undefined): AssistantMessage {
@@ -1830,7 +1831,15 @@ async function runLoopBody(
 					willContinue: hasMoreToolCalls && !isDeadlineExceeded(config.deadline),
 				});
 				turnOpen = false;
-				if (hookStop) hasMoreToolCalls = false; // the hook ended the run; queued user steering still continues it
+				if (hookStop) {
+					// The hook ended the run; queued user steering still continues it.
+					hasMoreToolCalls = false;
+					if (hookStop.message) {
+						currentContext.messages.push(hookStop.message);
+						newMessages.push(hookStop.message);
+						emitInputMessages(stream, [hookStop.message]);
+					}
+				}
 
 				if (isDeadlineExceeded(config.deadline)) {
 					endAgentStream(stream, newMessages, telemetry, stepCounter.count);

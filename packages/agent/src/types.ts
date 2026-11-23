@@ -102,12 +102,17 @@ export interface AgentTurnEndContext {
 	willContinue: boolean;
 }
 
-/** A turn-end hook; returning `{ stop: true }` ends the run normally at this boundary, with no further model call. */
+/** Ends the run normally at the turn boundary, with no further model call; `message` is appended to the run first. */
+export interface AgentTurnEndStop {
+	stop: true;
+	message?: AgentMessage;
+}
+
 export type AgentTurnEndHook = (
 	messages: AgentMessage[],
 	signal?: AbortSignal,
 	context?: AgentTurnEndContext,
-) => Promise<{ stop?: true } | void> | { stop?: true } | void;
+) => Promise<AgentTurnEndStop | void> | AgentTurnEndStop | void;
 
 export interface AgentPreModelCallStop {
 	/** Stop the agent loop before sending the next provider request. */

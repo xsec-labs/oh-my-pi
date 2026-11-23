@@ -48,8 +48,8 @@ packages/coding-agent/src/modes/runtime-init.ts 1 packages/coding-agent/test/ext
 packages/coding-agent/src/commands/session.ts 28 packages/coding-agent/test/session-transfer-*.test.ts
 packages/coding-agent/src/session/session-transfer.ts 45 packages/coding-agent/test/session-transfer-*.test.ts
 # The loop breaker (src/xsec/loop-breaker.ts) ends a run a repeating model ignores the guard's redirect for. stream-guards.ts constructs it and asks it after the guard's own verdict: an import, a field, the call and the return type. agent-session.ts hands its { stop: true } back to the agent loop as the turn-end hook's result.
-packages/coding-agent/src/session/stream-guards.ts 12 packages/coding-agent/test/agent-session-tool-call-loop-guard.test.ts packages/coding-agent/test/advisor-tool-call-loop-guard.test.ts
-# The agent loop ends the run normally when the onTurnEnd hook returns { stop: true }: the AgentTurnEndHook type, the hook's result in emitTurnEnd and the check after it.
-packages/agent/src/agent-loop.ts 10 packages/agent/test/agent-loop.test.ts
-packages/agent/src/agent.ts 9 packages/agent/test/agent-loop.test.ts
-packages/agent/src/types.ts 9 packages/agent/test/agent-loop.test.ts
+packages/coding-agent/src/session/stream-guards.ts 13 packages/coding-agent/test/agent-session-tool-call-loop-guard.test.ts packages/coding-agent/test/advisor-tool-call-loop-guard.test.ts
+# The agent loop ends the run normally when the onTurnEnd hook returns { stop: true, message? }: the AgentTurnEndHook type, the hook result in emitTurnEnd, and the check after it, which appends the hook's closing message to the run so agent_end.messages carries it.
+packages/agent/src/agent-loop.ts 19 packages/agent/test/agent-loop.test.ts
+packages/agent/src/agent.ts 10 packages/agent/test/agent-loop.test.ts
+packages/agent/src/types.ts 14 packages/agent/test/agent-loop.test.ts

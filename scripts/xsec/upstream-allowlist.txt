@@ -26,7 +26,7 @@ packages/coding-agent/src/secrets/placeholder.ts 6 packages/coding-agent/test/se
 packages/coding-agent/src/secrets/settings.ts 4 packages/coding-agent/test/secrets-obfuscator.test.ts
 packages/coding-agent/src/sdk.ts 13 packages/coding-agent/test/date-cwd-reminder.test.ts packages/coding-agent/test/secrets-*.test.ts packages/coding-agent/test/sdk-*.test.ts packages/coding-agent/test/sdk-session-isolation.test.ts
 packages/coding-agent/src/session/session-handoff.ts 4 packages/coding-agent/test/agent-session-handoff.test.ts
-packages/coding-agent/src/session/agent-session.ts 46 packages/coding-agent/test/agent-session-message-pipeline.test.ts packages/coding-agent/test/agent-session-side-state.test.ts packages/coding-agent/test/btw-*.test.ts packages/coding-agent/test/session-stop-continuation-recap.test.ts packages/coding-agent/test/extensions-runner.test.ts packages/coding-agent/test/title-generator.test.ts packages/coding-agent/test/title-drift-classifier.test.ts
+packages/coding-agent/src/session/agent-session.ts 49 packages/coding-agent/test/agent-session-message-pipeline.test.ts packages/coding-agent/test/agent-session-side-state.test.ts packages/coding-agent/test/btw-*.test.ts packages/coding-agent/test/session-stop-continuation-recap.test.ts packages/coding-agent/test/extensions-runner.test.ts packages/coding-agent/test/title-generator.test.ts packages/coding-agent/test/title-drift-classifier.test.ts
 packages/coding-agent/src/session/session-provider-boundary.ts 6 packages/coding-agent/test/agent-session-message-pipeline.test.ts packages/coding-agent/test/compaction-speculation.test.ts
 packages/coding-agent/src/session/session-maintenance.ts 4 packages/coding-agent/test/session-maintenance-compaction-cache-key.test.ts packages/coding-agent/test/compaction-speculation.test.ts
 packages/coding-agent/src/extensibility/extensions/wrapper.ts 6 packages/coding-agent/test/hook-tool-wrapper-input.test.ts packages/coding-agent/test/agent-session-acp-permission.test.ts packages/coding-agent/test/extensions-runner.test.ts
@@ -47,3 +47,9 @@ packages/coding-agent/src/modes/runtime-init.ts 1 packages/coding-agent/test/ext
 # session.ts and session-transfer.ts call src/xsec/session-restore-secrets.ts and session-pack-secrets.ts for `omp session pack --restore-secrets`: an import, the option and its validation, the call and the report line.
 packages/coding-agent/src/commands/session.ts 28 packages/coding-agent/test/session-transfer-*.test.ts
 packages/coding-agent/src/session/session-transfer.ts 45 packages/coding-agent/test/session-transfer-*.test.ts
+# The loop breaker (src/xsec/loop-breaker.ts) ends a run a repeating model ignores the guard's redirect for. stream-guards.ts constructs it and asks it after the guard's own verdict: an import, a field, the call and the return type. agent-session.ts hands its { stop: true } back to the agent loop as the turn-end hook's result.
+packages/coding-agent/src/session/stream-guards.ts 13 packages/coding-agent/test/agent-session-tool-call-loop-guard.test.ts packages/coding-agent/test/advisor-tool-call-loop-guard.test.ts
+# The agent loop ends the run normally when the onTurnEnd hook returns { stop: true, message? }: the AgentTurnEndHook type, the hook result in emitTurnEnd, and the check after it, which appends the hook's closing message to the run so agent_end.messages carries it.
+packages/agent/src/agent-loop.ts 19 packages/agent/test/agent-loop.test.ts
+packages/agent/src/agent.ts 10 packages/agent/test/agent-loop.test.ts
+packages/agent/src/types.ts 14 packages/agent/test/agent-loop.test.ts

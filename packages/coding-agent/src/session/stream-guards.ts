@@ -3,6 +3,7 @@ import {
 	type AgentEvent,
 	type AgentMessage,
 	type AgentTurnEndContext,
+	type AgentTurnEndStop,
 	createToolScopedAbortReason,
 } from "@oh-my-pi/pi-agent-core";
 import type { AssistantMessage, AssistantMessageEvent, Model } from "@oh-my-pi/pi-ai";
@@ -21,6 +22,7 @@ import {
 } from "./tool-call-loop-redirect";
 
 import { cfgEditStreamingAbort } from "../edit/settings";
+import { LoopBreaker } from "../xsec/loop-breaker";
 import { writeDeviceName } from "../tools/resolve";
 import {
 	cfgModelLoopGuardEnabled,
@@ -203,20 +205,25 @@ export class LoopGuards {
 	#geminiHeaderDetector: GeminiHeaderRunDetector | undefined;
 	#toolCallLoopGuard: ToolCallLoopGuard | undefined;
 	#toolCallLoopGuardSettingsKey: string | undefined;
+	readonly #loopBreaker: LoopBreaker;
 
 	constructor(host: StreamGuardsHost) {
 		this.#host = host;
+		this.#loopBreaker = new LoopBreaker(host);
 	}
 
-	/** Records a completed turn and injects a redirect when calls repeat. */
-	recordTurn(messages: AgentMessage[], context: AgentTurnEndContext | undefined): void {
-		if (context?.message.role !== "assistant") return;
+	/** Records a completed turn and injects a redirect when calls repeat; `{ stop: true }` ends the run. */
+	recordTurn(messages: AgentMessage[], context: AgentTurnEndContext | undefined): AgentTurnEndStop | undefined {
+		if (context?.message.role !== "assistant") return undefined;
 		const detection = this.#activeToolCallLoopGuard()?.recordTurn({
 			message: context.message,
 			toolResults: context.toolResults,
 			injectedContext: (context.additionalMessages?.length ?? 0) > 0,
 		});
+		const stop = this.#loopBreaker.recordTurn(messages, context, detection);
+		if (stop) return stop;
 		if (detection) this.#injectToolCallLoopRedirect(messages, detection);
+		return undefined;
 	}
 
 	/** Feeds a streamed assistant event to the Gemini header-runaway detector. */

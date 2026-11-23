@@ -377,19 +377,6 @@ export const cfgModelToolCallLoopGuardThreshold = register({
 	},
 });
 
-export const cfgModelToolCallLoopGuardHardLimit = register({
-	id: "model.toolCallLoopGuard.hardLimit",
-	type: "number",
-	default: 3,
-	ui: {
-		tab: "model",
-		group: "Thinking",
-		label: "Tool-Call Loop Hard Stop",
-		description:
-			"Further repetitions tolerated after the corrective steer before the run is ended with an explanation; 0 never stops the run",
-	},
-});
-
 export const cfgModelToolCallLoopGuardExemptTools = register({
 	id: "model.toolCallLoopGuard.exemptTools",
 	type: "array",

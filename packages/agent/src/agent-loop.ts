@@ -1825,14 +1825,12 @@ async function runLoopBody(
 					hasMoreToolCalls = true;
 				}
 
-				const hookRequestedStop = await emitTurnEnd(stream, currentContext, message, toolResults, config, signal, {
+				const hookStop = await emitTurnEnd(stream, currentContext, message, toolResults, config, signal, {
 					additionalMessages,
 					willContinue: hasMoreToolCalls && !isDeadlineExceeded(config.deadline),
 				});
 				turnOpen = false;
-				// The turn-end hook ended the run (e.g. a loop breaker): complete normally
-				// instead of sampling again. Queued user steering below still continues it.
-				if (hookRequestedStop) hasMoreToolCalls = false;
+				if (hookStop) hasMoreToolCalls = false; // the hook ended the run; queued user steering still continues it
 
 				if (isDeadlineExceeded(config.deadline)) {
 					endAgentStream(stream, newMessages, telemetry, stepCounter.count);

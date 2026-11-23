@@ -2541,12 +2541,12 @@ export class AgentSession implements SettingsScope, AgentViewSession {
 				this.#pendingRewindReport = undefined;
 				await this.#applyRewind(rewindReport, messages, context);
 			}
-			const loopResult = this.#loopGuards.recordTurn(messages, context);
+			const loopStop = this.#loopGuards.recordTurn(messages, context);
 			await this.#prewalk.advanceAtTurnEnd(messages, context);
 			if (context?.willContinue) this.#steerAnthropicWrapUp();
 			await this.#advisors.onPrimaryTurnEnd(messages, context?.willContinue, signal);
 			await this.#maintenance.maintainContextMidRun(messages, signal, context);
-			return loopResult;
+			return loopStop;
 		});
 		this.yieldQueue = new YieldQueue({
 			// A transition swaps the transcript under the agent: hold idle deliveries until it

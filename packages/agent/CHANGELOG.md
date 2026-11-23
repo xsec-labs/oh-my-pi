@@ -2,10 +2,6 @@
 
 ## [Unreleased]
 
-### Added
-
-- `onTurnEnd` hooks may return `{ stop: true }` to end the run normally at that turn boundary.
-
 ## [18.20.1] - 2026-11-14
 
 ### Fixed

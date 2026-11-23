@@ -59,3 +59,14 @@ export const cfgSecretsMinObfuscateLength = register({
 	default: DEFAULT_MIN_OBFUSCATE_LENGTH,
 });
 effect(cfgSecretsMinObfuscateLength, setMinObfuscateLength);
+
+/**
+ * Further repetitions the loop guard tolerates after its corrective steer before it ends the run with an
+ * explanation. Applies to identical tool calls, tool-call cycles and repeated prose. `0` never stops the run.
+ * The behaviour lives in `./loop-breaker.ts`.
+ */
+export const cfgToolCallLoopGuardHardLimit = register({
+	id: "model.toolCallLoopGuard.hardLimit",
+	type: "number",
+	default: 3,
+});

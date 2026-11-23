@@ -3,7 +3,6 @@ import {
 	type AgentEvent,
 	type AgentMessage,
 	type AgentTurnEndContext,
-	type AgentTurnEndResult,
 	createToolScopedAbortReason,
 } from "@oh-my-pi/pi-agent-core";
 import type { AssistantMessage, AssistantMessageEvent, Model } from "@oh-my-pi/pi-ai";
@@ -16,20 +15,19 @@ import streamingEditRecoveryTemplate from "../prompts/system/streaming-edit-reco
 import type { CustomMessage } from "./messages";
 import type { SessionManager } from "./session-manager";
 import {
-	renderToolCallLoopBreaker,
 	renderToolCallLoopRedirect,
 	TOOL_CALL_LOOP_REDIRECT_TYPE,
 	toolCallLoopRedirectDetails,
 } from "./tool-call-loop-redirect";
 
 import { cfgEditStreamingAbort } from "../edit/settings";
+import { LoopBreaker } from "../xsec/loop-breaker";
 import { writeDeviceName } from "../tools/resolve";
 import {
 	cfgModelLoopGuardEnabled,
 	cfgModelLoopGuardToolCallReminder,
 	cfgModelToolCallLoopGuardEnabled,
 	cfgModelToolCallLoopGuardExemptTools,
-	cfgModelToolCallLoopGuardHardLimit,
 	cfgModelToolCallLoopGuardThreshold,
 } from "./settings";
 
@@ -206,61 +204,25 @@ export class LoopGuards {
 	#geminiHeaderDetector: GeminiHeaderRunDetector | undefined;
 	#toolCallLoopGuard: ToolCallLoopGuard | undefined;
 	#toolCallLoopGuardSettingsKey: string | undefined;
+	readonly #loopBreaker: LoopBreaker;
 
 	constructor(host: StreamGuardsHost) {
 		this.#host = host;
+		this.#loopBreaker = new LoopBreaker(host);
 	}
 
-	/**
-	 * Records a completed turn. Repetition earns a redirect; when the redirect is
-	 * ignored for `hardLimit` more repetitions the run ends: a closing assistant
-	 * message explains why and the result asks the loop to stop normally.
-	 */
-	recordTurn(messages: AgentMessage[], context: AgentTurnEndContext | undefined): AgentTurnEndResult | undefined {
+	/** Records a completed turn and injects a redirect when calls repeat; `{ stop: true }` ends the run. */
+	recordTurn(messages: AgentMessage[], context: AgentTurnEndContext | undefined): { stop: true } | undefined {
 		if (context?.message.role !== "assistant") return undefined;
 		const detection = this.#activeToolCallLoopGuard()?.recordTurn({
 			message: context.message,
 			toolResults: context.toolResults,
 			injectedContext: (context.additionalMessages?.length ?? 0) > 0,
 		});
-		if (!detection) return undefined;
-		if (detection.level === "abort") {
-			this.#endRunAfterLoop(context.message, detection);
-			return { stop: true };
-		}
-		this.#injectToolCallLoopRedirect(messages, detection);
+		const stop = this.#loopBreaker.recordTurn(messages, context, detection);
+		if (stop) return stop;
+		if (detection) this.#injectToolCallLoopRedirect(messages, detection);
 		return undefined;
-	}
-
-	/** Ends a run whose loop ignored the redirect: closes it with a visible explanation. */
-	#endRunAfterLoop(last: AssistantMessage, detection: RepeatedToolCallDetection): void {
-		logger.warn("tool-call loop ignored the redirect; ending the run", {
-			kind: detection.kind,
-			toolName: detection.toolName,
-			count: detection.count,
-		});
-		// Start the next prompt with fresh counters instead of tripping on stale history.
-		this.#toolCallLoopGuard = undefined;
-		this.#toolCallLoopGuardSettingsKey = undefined;
-		const closing: AssistantMessage = {
-			role: "assistant",
-			content: [{ type: "text", text: renderToolCallLoopBreaker(detection) }],
-			api: last.api,
-			provider: last.provider,
-			model: last.model,
-			usage: {
-				input: 0,
-				output: 0,
-				cacheRead: 0,
-				cacheWrite: 0,
-				totalTokens: 0,
-				cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
-			},
-			stopReason: "stop",
-			timestamp: Date.now(),
-		};
-		this.#host.agent.emitExternalEvent({ type: "message_start", message: closing });
-		this.#host.agent.emitExternalEvent({ type: "message_end", message: closing });
 	}
 
 	/** Feeds a streamed assistant event to the Gemini header-runaway detector. */
@@ -288,15 +250,9 @@ export class LoopGuards {
 		const exemptTools = cfgModelToolCallLoopGuardExemptTools
 			.get(this.#host.settings)
 			.filter((tool): tool is string => typeof tool === "string" && tool.length > 0);
-		const hardLimit = cfgModelToolCallLoopGuardHardLimit.get(this.#host.settings);
-		const settingsKey = `${threshold}:${hardLimit}:${JSON.stringify(exemptTools)}`;
+		const settingsKey = `${threshold}:${JSON.stringify(exemptTools)}`;
 		if (!this.#toolCallLoopGuard || this.#toolCallLoopGuardSettingsKey !== settingsKey) {
-			this.#toolCallLoopGuard = new ToolCallLoopGuard({
-				threshold,
-				exemptTools,
-				hardLimit,
-				exemptionAlias: writeDeviceName,
-			});
+			this.#toolCallLoopGuard = new ToolCallLoopGuard({ threshold, exemptTools, exemptionAlias: writeDeviceName });
 			this.#toolCallLoopGuardSettingsKey = settingsKey;
 		}
 		return this.#toolCallLoopGuard;

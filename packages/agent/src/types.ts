@@ -102,15 +102,12 @@ export interface AgentTurnEndContext {
 	willContinue: boolean;
 }
 
-/**
- * Result an `onTurnEnd` hook may return. `stop: true` ends the run at this turn
- * boundary as a normal completion: no further provider request, no aborted
- * assistant message, and the stop reason the host sees is a plain end of turn.
- * Queued steering from the user still continues the run.
- */
-export interface AgentTurnEndResult {
-	stop?: true;
-}
+/** A turn-end hook; returning `{ stop: true }` ends the run normally at this boundary, with no further model call. */
+export type AgentTurnEndHook = (
+	messages: AgentMessage[],
+	signal?: AbortSignal,
+	context?: AgentTurnEndContext,
+) => Promise<{ stop?: true } | void> | { stop?: true } | void;
 
 export interface AgentPreModelCallStop {
 	/** Stop the agent loop before sending the next provider request. */
@@ -642,11 +639,7 @@ export interface AgentLoopConfig extends SimpleStreamOptions {
 	 * is true when the current tool-loop batch is continuing without yielding to
 	 * post-turn steering.
 	 */
-	onTurnEnd?: (
-		messages: AgentMessage[],
-		signal?: AbortSignal,
-		context?: AgentTurnEndContext,
-	) => Promise<AgentTurnEndResult | void> | AgentTurnEndResult | void;
+	onTurnEnd?: AgentTurnEndHook;
 
 	/**
 	 * Called once an assistant message is finalized from the model stream, before
